@@ -1101,6 +1101,24 @@ def execute_code(
     if not code or not code.strip():
         return tool_error("No code provided.")
 
+    # User approval gate (gateway: Discord, Telegram, etc.)
+    # execute_code can run arbitrary Python with tool access, so every
+    # invocation requires user consent through the approval flow.
+    from tools.approval import check_execute_code_approval
+    approval = check_execute_code_approval(code)
+    if not approval["approved"]:
+        desc = approval.get("description", "Python code execution")
+        if approval.get("status") == "approval_required":
+            return json.dumps({
+                "error": approval.get("message", "Waiting for user approval"),
+                "status": "approval_required",
+                "description": desc,
+            })
+        return json.dumps({
+            "error": approval.get("message", f"BLOCKED: {desc}"),
+            "status": "blocked",
+        })
+
     # Dispatch: remote backends use file-based RPC, local uses UDS
     from tools.terminal_tool import _get_env_config
     env_type = _get_env_config()["env_type"]

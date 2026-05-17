@@ -1767,106 +1767,96 @@ def check_all_command_guards(command: str, env_type: str,
             "user_approved": True, "description": combined_desc}
 
 
-def check_execute_code_guard(code: str, env_type: str) -> dict:
-    """Approve an execute_code script before its child process is spawned.
 
-    execute_code runs arbitrary local Python — the script can call
-    ``subprocess``, ``os.system``, ``ctypes``, or other process/file APIs
-    directly, none of which pass through ``terminal()`` /
-    ``DANGEROUS_PATTERNS``. In gateway/ask contexts we fail closed by approving
-    the script as a whole before it runs (#30882). Returns the same dict
-    contract as ``check_all_command_guards``.
+# =========================================================================
+# execute_code approval gate
+# =========================================================================
+# Every call to execute_code goes through this gate. Unlike the dangerous-
+# command patterns which only fire on specific command shapes, execute_code
+# is _always_ approval-gated because the sandbox can call terminal,
+# write_file, patch, etc. programmatically.
+#
+# Uses the same blocking gateway queue as check_all_command_guards so /approve
+# and /deny resolve it transparently from Discord, Telegram, etc.
+# =========================================================================
 
-    Scope (documented limitation, #30882): in a purely local non-interactive
-    non-gateway session (no TTY, not gateway, not cron-deny) this returns
-    approved — matching the existing terminal auto-approve contract. The
-    hardline floor still blocks catastrophic ``terminal()`` commands the script
-    issues; running arbitrary code headlessly without any approval surface is
-    trusted-by-config (set a gateway/ask surface or ``approvals.cron_mode`` to
-    require approval).
+def check_execute_code_approval(code: str) -> dict:
+    """Approval gate for execute_code calls.
+
+    Always requires approval in gateway context (Discord, Telegram, etc.).
+    Respects yolo, approvals.mode=off, and cron deny policy.
+
+    Returns dict with 'approved' (bool) and optionally 'message'.
     """
-    pattern_key = "execute_code"
-    description = (
-        "execute_code script execution. The script can spawn subprocesses or "
-        "mutate files without passing through terminal command approval; "
-        "approval is one-shot for this run."
-    )
-
-    # Isolated backends already sandbox the child — matches the container skip
-    # in check_all_command_guards / check_dangerous_command.
-    if env_type in {"docker", "singularity", "modal", "daytona", "vercel_sandbox"}:
-        return {"approved": True, "message": None}
-
-    # --yolo or approvals.mode=off: bypass (session- or process-scoped).
+    # --yolo or approvals.mode=off: bypass
     approval_mode = _get_approval_mode()
-    if _YOLO_MODE_FROZEN or is_current_session_yolo_enabled() or approval_mode == "off":
+    if is_truthy_value(os.getenv("HERMES_YOLO_MODE")) or is_current_session_yolo_enabled() or approval_mode == "off":
         return {"approved": True, "message": None}
 
+    is_cli = os.getenv("HERMES_INTERACTIVE")
     is_gateway = _is_gateway_approval_context()
-    is_ask = env_var_enabled("HERMES_EXEC_ASK")
 
-    # Cron: no user is present to approve arbitrary code.
-    if env_var_enabled("HERMES_CRON_SESSION"):
-        if _get_cron_approval_mode() == "deny":
-            return {
-                "approved": False,
-                "message": (
-                    "BLOCKED: execute_code runs arbitrary local Python "
-                    "(including subprocess calls that bypass shell-string "
-                    "approval checks). Cron jobs run without a user present "
-                    "to approve it. Use normal tools instead, or set "
-                    "approvals.cron_mode: approve only if this cron profile "
-                    "is intentionally trusted."
-                ),
-                "pattern_key": pattern_key,
-                "description": description,
-                "outcome": "blocked",
-                "user_consent": False,
-            }
+    # Non-interactive, non-gateway, non-CLI: skip (cron path below)
+    if not is_cli and not is_gateway:
+        if os.getenv("HERMES_CRON_SESSION"):
+            if _get_cron_approval_mode() == "deny":
+                return {
+                    "approved": False,
+                    "message": (
+                        "BLOCKED: execute_code requires user approval but cron jobs "
+                        "run without a user present. Find an alternative approach. "
+                        "To allow execute_code in cron jobs, set "
+                        "approvals.cron_mode: approve in config.yaml."
+                    ),
+                }
         return {"approved": True, "message": None}
 
-    # Only gateway/ask contexts get the one-shot whole-script approval.
-    #   * CLI interactive: the script's terminal() calls are guarded per-call
-    #     (context now propagates into the RPC thread, #33057); a whole-script
-    #     prompt would fire on every execute_code call.
-    #   * Local non-interactive non-gateway: documented limitation above.
-    if not is_gateway and not is_ask:
-        return {"approved": True, "message": None}
-
+    # Session-level caching: if user approved execute_code this session, skip
     session_key = get_current_session_key()
-    # Built only now (past the early-return gates) so the common non-approval
-    # paths don't pay to copy a potentially-large script into this string.
-    command = f"execute_code <<'PY'\n{code}\nPY"
-
-    # Check session/permanent approval — same gate as check_all_command_guards.
-    # Without this, "Approve session" / "Always" choices are stored but never
-    # consulted, so every execute_code call re-prompts the user (#39275).
+    pattern_key = "execute_code"
     if is_approved(session_key, pattern_key):
         return {"approved": True, "message": None}
 
-    # Smart mode: ask the aux LLM about the whole script. An APPROVE here only
-    # suppresses the redundant whole-script prompt; the per-call terminal()
-    # guards (restored by context propagation) still run independently.
-    if approval_mode == "smart":
-        verdict = _smart_approve(command, description)
-        if verdict == "approve":
-            logger.debug("Smart approval: auto-approved execute_code for session %s",
-                         session_key)
-            return {"approved": True, "message": None,
-                    "smart_approved": True, "description": description}
-        if verdict == "deny":
+    # Non-gateway CLI: use the interactive prompt
+    if is_cli and not is_gateway:
+        code_preview = _truncate_code(code)
+        combined_desc = "Python code execution"
+        _fire_approval_hook(
+            "pre_approval_request",
+            command=code_preview,
+            description=combined_desc,
+            pattern_key=pattern_key,
+            pattern_keys=[pattern_key],
+            session_key=session_key,
+            surface="cli",
+        )
+        choice = prompt_dangerous_approval(
+            code_preview, combined_desc, allow_permanent=True,
+            approval_callback=None,
+        )
+        _fire_approval_hook(
+            "post_approval_response",
+            command=code_preview,
+            description=combined_desc,
+            pattern_key=pattern_key,
+            pattern_keys=[pattern_key],
+            session_key=session_key,
+            surface="cli",
+            choice=choice,
+        )
+        if choice == "deny":
             return {
                 "approved": False,
-                "message": ("BLOCKED by smart approval: execute_code script "
-                            "execution was assessed as genuinely dangerous. "
-                            "Do NOT retry."),
-                "smart_denied": True,
-                "pattern_key": pattern_key,
-                "description": description,
-                "outcome": "denied",
-                "user_consent": False,
+                "message": "BLOCKED: User denied execute_code. Do NOT retry.",
+                "description": combined_desc,
             }
-        # verdict == "escalate" → fall through to manual approval
+        if choice in {"session", "always"}:
+            approve_session(session_key, pattern_key)
+        if choice == "always":
+            approve_permanent(pattern_key)
+            save_permanent_allowlist(_permanent_approved)
+        return {"approved": True, "message": None,
+                "user_approved": True, "description": combined_desc}
 
     notify_cb = None
     with _lock:
