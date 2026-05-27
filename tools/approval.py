@@ -654,17 +654,80 @@ def _rewrite_resolved_hermes_home(command: str) -> str:
     return command
 
 
+# ---------------------------------------------------------------------------
+# User-defined custom dangerous patterns (loaded from config.yaml)
+# ---------------------------------------------------------------------------
+
+_custom_patterns_cache: list[tuple] | None = None
+
+def _get_custom_dangerous_patterns_compiled() -> list[tuple]:
+    """Load user-defined dangerous patterns from config.yaml, cache compiled.
+
+    Config key ``approvals.custom_patterns`` accepts a list of objects:
+      - pattern:     regex string (same format as built-in DANGEROUS_PATTERNS)
+      - description: human-readable label used as approval key
+
+    Example (config.yaml)::
+
+      approvals:
+        custom_patterns:
+          - pattern: "\\bgit\\s+commit\\b"
+            description: "git commit (creates commits)"
+          - pattern: "\\bgit\\s+push\\b"
+            description: "git push (pushes to remote)"
+
+    Returns:
+      List of (compiled_regex, description) tuples. Empty if no custom patterns.
+    """
+    global _custom_patterns_cache
+    if _custom_patterns_cache is not None:
+        return _custom_patterns_cache
+
+    _custom_patterns_cache = []
+    try:
+        raw = _get_approval_config().get("custom_patterns", [])
+        if raw and isinstance(raw, list):
+            for entry in raw:
+                if isinstance(entry, dict):
+                    pat = entry.get("pattern", "")
+                    desc = entry.get("description", pat)
+                    if pat and desc:
+                        try:
+                            _custom_patterns_cache.append((re.compile(pat, _RE_FLAGS), desc))
+                        except re.error:
+                            logger.warning(
+                                "Skipping invalid custom approval pattern: %r (%s)", pat, desc
+                            )
+    except Exception as exc:
+        logger.warning("Failed to load custom dangerous patterns: %s", exc)
+
+    return _custom_patterns_cache
+
+
 def detect_dangerous_command(command: str) -> tuple:
-    """Check if a command matches any dangerous patterns.
+    """Check if a command matches any dangerous patterns (built-in + custom).
+
+    Custom patterns are loaded from config key ``approvals.custom_patterns``
+    — a list of objects with ``pattern`` (regex string) and ``description``.
+    Compiled once and cached to avoid per-command overhead.
 
     Returns:
         (is_dangerous, pattern_key, description) or (False, None, None)
     """
     command_lower = _normalize_command_for_detection(command).lower()
+
+    # 1) Built-in patterns
     for pattern_re, description in DANGEROUS_PATTERNS_COMPILED:
         if pattern_re.search(command_lower):
             pattern_key = description
             return (True, pattern_key, description)
+
+    # 2) User-defined custom patterns (from config.yaml)
+    for pattern_re, description in _get_custom_dangerous_patterns_compiled():
+        if pattern_re.search(command_lower):
+            pattern_key = description
+            return (True, pattern_key, description)
+
     return (False, None, None)
 
 
