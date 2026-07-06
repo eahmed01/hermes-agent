@@ -163,6 +163,18 @@ TOOLSETS = {
         "includes": []
     },
     
+    "moa": {
+        "description": "Advanced reasoning and problem-solving tools",
+        "tools": ["mixture_of_agents"],
+        "includes": []
+    },
+
+    "consultation": {
+        "description": "Frontier model consultation: ask expensive models (Opus, GPT-5.5, etc.) for expert advisory on specific hard problems",
+        "tools": ["consultation.ask"],
+        "includes": []
+    },
+
     "skills": {
         "description": "Access, create, edit, and manage skill documents with specialized instructions and knowledge",
         "tools": ["skills_list", "skill_view", "skill_manage"],
