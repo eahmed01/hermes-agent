@@ -218,6 +218,7 @@ def _load_consultation_config() -> Optional[Dict[str, Any]]:
             "models": models,
             "session_budget": float(consultation.get("session_budget", DEFAULT_SESSION_BUDGET)),
             "session_budget_alert": float(consultation.get("session_budget_alert", DEFAULT_SESSION_BUDGET_ALERT)),
+            "require_approval": bool(consultation.get("require_approval", True)),
         }
 
     except ValueError:
@@ -394,9 +395,12 @@ def _build_dynamic_schema() -> Dict[str, Any]:
         if spent >= budget:
             budget_line += " BUDGET EXHAUSTED - no more calls possible."
 
+    require_approval = cfg.get("require_approval", True)
+    approval_text = " Each call requires user approval." if require_approval else ""
+
     description = (
         "Ask a frontier or peer model for expert advisory on a specific, "
-        "difficult problem. Each call costs money and requires user approval. "
+        f"difficult problem. Each call costs money.{approval_text} "
         "Use consultants (opus, gpt55) for hard problems; use peers (sonnet, gpt41) "
         "for cheaper second opinions and sanity checks. "
         "The consultant model receives your prompt and optional context and "
@@ -446,7 +450,7 @@ def _build_dynamic_schema() -> Dict[str, Any]:
 
 
 async def consultation_ask(args: Dict[str, Any]) -> str:
-    """Handle a consultation.ask tool call."""
+    """Handle a consultation_ask tool call."""
     model_name = args.get("model", "")
     prompt = args.get("prompt", "")
     context = args.get("context", "") or ""
@@ -508,7 +512,7 @@ async def consultation_ask(args: Dict[str, Any]) -> str:
             ),
         })
 
-    # 4. Approval gate
+    # 4. Approval gate (configurable)
     prompt_preview = prompt[:200] + ("..." if len(prompt) > 200 else "")
 
     approval_description = (
@@ -519,24 +523,25 @@ async def consultation_ask(args: Dict[str, Any]) -> str:
         f"Question: {prompt_preview}"
     )
 
-    try:
-        from tools.approval import prompt_dangerous_approval
-        from tools.terminal_tool import _get_approval_callback
+    if cfg.get("require_approval", True):
+        try:
+            from tools.approval import prompt_dangerous_approval
+            from tools.terminal_tool import _get_approval_callback
 
-        choice = prompt_dangerous_approval(
-            command="consultation.ask",
-            description=approval_description,
-            timeout_seconds=DEFAULT_APPROVAL_TIMEOUT,
-            allow_permanent=False,
-            approval_callback=_get_approval_callback(),
-        )
+            choice = prompt_dangerous_approval(
+                command="consultation_ask",
+                description=approval_description,
+                timeout_seconds=DEFAULT_APPROVAL_TIMEOUT,
+                allow_permanent=False,
+                approval_callback=_get_approval_callback(),
+            )
 
-        if choice not in ("once", "session"):
-            return json.dumps({"error": "User declined this consultation call."})
+            if choice not in ("once", "session"):
+                return json.dumps({"error": "User declined this consultation call."})
 
-    except Exception as e:
-        logger.error("Approval failed: %s", e)
-        return json.dumps({"error": f"Could not get user approval: {e}"})
+        except Exception as e:
+            logger.error("Approval failed: %s", e)
+            return json.dumps({"error": f"Could not get user approval: {e}"})
 
     # 5. Final budget check
     session_spent = _get_session_spent()
@@ -629,7 +634,7 @@ async def consultation_ask(args: Dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 
 CONSULTATION_SCHEMA = {
-    "name": "consultation.ask",
+    "name": "consultation_ask",
     "description": "Ask an expensive frontier model for expert advisory.",
     "parameters": {
         "type": "object",
@@ -643,7 +648,7 @@ CONSULTATION_SCHEMA = {
 }
 
 registry.register(
-    name="consultation.ask",
+    name="consultation_ask",
     toolset="consultation",
     schema=CONSULTATION_SCHEMA,
     handler=lambda args, **kw: consultation_ask(args),
