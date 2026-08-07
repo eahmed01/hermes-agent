@@ -1319,7 +1319,59 @@ def get_cute_tool_message(
     if tool_name == "write_file":
         return _wrap(f"┊ ✍️  write     {_path(args.get('path', ''))}  {dur}")
     if tool_name == "patch":
-        return _wrap(f"┊ 🔧 patch     {_path(args.get('path', ''))}  {dur}")
+        path_detail = _path(args.get("path", "")) if args.get("path") else ""
+        mode_detail = args.get("mode")
+        diff_stats = ""
+        file_detail = ""
+        lint_detail = ""
+        if result:
+            try:
+                data = safe_json_loads(result)
+                if data and data.get("success"):
+                    diff_text = data.get("diff", "")
+                    if diff_text:
+                        added = diff_text.count("\n+") - diff_text.count("\n+++")
+                        removed = diff_text.count("\n-") - diff_text.count("\n---")
+                        if added or removed:
+                            diff_stats = f"+{added}/-{removed}"
+
+                    modified = data.get("files_modified") or []
+                    created = data.get("files_created") or []
+                    deleted = data.get("files_deleted") or []
+                    all_files = modified + created + deleted
+                    if all_files and not path_detail:
+                        if len(all_files) == 1:
+                            file_detail = _path(all_files[0])
+                        else:
+                            file_detail = f"{len(all_files)} file(s)"
+
+                    lint = data.get("lint")
+                    if lint and isinstance(lint, dict):
+                        lint_statuses = [v.get("status") for v in lint.values() if isinstance(v, dict)]
+                        if lint_statuses:
+                            if all(s == "ok" for s in lint_statuses):
+                                lint_detail = "lint ✓"
+                            else:
+                                errors = [s for s in lint_statuses if s == "error"]
+                                lint_detail = f"lint {len(errors)} err" if errors else "lint warn"
+
+                    created_set = set(data.get("files_created") or [])
+                    deleted_set = set(data.get("files_deleted") or [])
+                    file_labels = []
+                    if created_set:
+                        file_labels.append(f"+{len(created_set)} new")
+                    if deleted_set:
+                        file_labels.append(f"-{len(deleted_set)} del")
+                    if file_labels:
+                        file_detail = ", ".join(file_labels)
+                        if modified:
+                            file_detail += f", {len(modified)} mod"
+            except Exception:
+                pass
+
+        parts = [p for p in (file_detail or path_detail, diff_stats, lint_detail) if p]
+        detail = "  ".join(parts) if parts else (path_detail or mode_detail or "")
+        return _wrap(f"┊ 🔧 patch     {detail}  {dur}")
     if tool_name == "search_files":
         pattern = _trunc(args.get("pattern", ""), 35)
         target = args.get("target", "content")
