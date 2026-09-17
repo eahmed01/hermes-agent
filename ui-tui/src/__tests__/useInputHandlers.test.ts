@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   applyVoiceRecordResponse,
   handleIdleHotkeyExit,
+  sectionHotkey,
   shouldAllowIdleHotkeyExit,
   shouldFallThroughForScroll
 } from '../app/useInputHandlers.js'
@@ -76,6 +77,31 @@ describe('handleIdleHotkeyExit', () => {
     expect(actions.die).not.toHaveBeenCalled()
     expect(requestDashboardNewSession).toHaveBeenCalledTimes(1)
     expect(actions.sys).toHaveBeenCalledWith('starting a fresh dashboard chat...')
+  })
+})
+
+describe('sectionHotkey — ctrl-letter → details section mapping', () => {
+  it('maps Ctrl+R to the reasoning (thinking) section', () => {
+    expect(sectionHotkey('r', { ctrl: true })).toBe('thinking')
+  })
+
+  it('maps Ctrl+T to the tools section', () => {
+    expect(sectionHotkey('t', { ctrl: true })).toBe('tools')
+  })
+
+  it('is case-insensitive', () => {
+    expect(sectionHotkey('R', { ctrl: true })).toBe('thinking')
+    expect(sectionHotkey('T', { ctrl: true })).toBe('tools')
+  })
+
+  it('ignores unmodified letters', () => {
+    expect(sectionHotkey('r', { ctrl: false })).toBeUndefined()
+    expect(sectionHotkey('t', { ctrl: false })).toBeUndefined()
+  })
+
+  it('returns undefined for unbound ctrl letters', () => {
+    expect(sectionHotkey('x', { ctrl: true })).toBeUndefined()
+    expect(sectionHotkey('d', { ctrl: true })).toBeUndefined()
   })
 })
 

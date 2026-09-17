@@ -20,10 +20,16 @@ import type { InputHandlerActions, InputHandlerContext, InputHandlerResult } fro
 import { $isBlocked, $overlayState, patchOverlayState } from './overlayStore.js'
 import { turnController } from './turnController.js'
 import { patchTurnState } from './turnStore.js'
-import { getUiState } from './uiStore.js'
+import { getUiState, patchUiState } from './uiStore.js'
 
 const isCtrl = (key: { ctrl: boolean }, ch: string, target: string) => key.ctrl && ch.toLowerCase() === target
 const DASHBOARD_NEW_SESSION_MESSAGE = 'starting a fresh dashboard chat...'
+
+// Section hotkeys: Ctrl+R toggles reasoning (thinking), Ctrl+T toggles tool calls.
+const SECTION_HOTKEYS: Record<string, 'thinking' | 'tools'> = { r: 'thinking', t: 'tools' }
+
+export const sectionHotkey = (ch: string, key: { ctrl: boolean }): 'thinking' | 'tools' | undefined =>
+  key.ctrl ? SECTION_HOTKEYS[ch.toLowerCase()] : undefined
 
 export const shouldAllowIdleHotkeyExit = (dashboardTuiMode = DASHBOARD_TUI_MODE) => !dashboardTuiMode
 
@@ -559,6 +565,32 @@ export function useInputHandlers(ctx: InputHandlerContext): InputHandlerResult {
 
     if (isVoiceToggleKey(key, ch, voice.recordKey)) {
       return voiceRecordToggle()
+    }
+
+    // Section hotkeys: Ctrl+R toggles reasoning, Ctrl+T toggles tool calls.
+    // Persists via RPC so the setting survives a redraw. Silent — a sys line
+    // per press would spam the transcript with lines that can't be removed;
+    // the section's visible expand/collapse is the feedback.
+    const hotkeySection = sectionHotkey(ch, key)
+    if (hotkeySection) {
+      const isHidden = live.sections?.[hotkeySection] === 'hidden'
+      const nextMode = isHidden ? 'expanded' : 'hidden'
+
+      patchUiState({
+        ...live,
+        sections: { ...live.sections, [hotkeySection]: nextMode },
+        ...(hotkeySection === 'thinking' ? { showReasoning: nextMode === 'expanded' } : {})
+      })
+
+      gateway
+        .rpc<ConfigSetResponse>('config.set', {
+          key: `details_mode.${hotkeySection}`,
+          session_id: live.sid,
+          value: nextMode
+        })
+        .catch(() => {})
+
+      return
     }
 
     // Cmd/Ctrl+G, plus Alt+G fallback for VSCode/Cursor (they bind the

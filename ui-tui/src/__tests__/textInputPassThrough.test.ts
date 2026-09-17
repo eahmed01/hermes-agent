@@ -44,9 +44,17 @@ describe('shouldPassThroughToGlobalHandler', () => {
   it('always passes through non-voice global control keys', () => {
     expect(shouldPassThroughToGlobalHandler('c', key({ ctrl: true }))).toBe(true)
     expect(shouldPassThroughToGlobalHandler('x', key({ ctrl: true }))).toBe(true)
+    expect(shouldPassThroughToGlobalHandler('t', key({ ctrl: true }))).toBe(true)
+    expect(shouldPassThroughToGlobalHandler('r', key({ ctrl: true }))).toBe(true)
     expect(shouldPassThroughToGlobalHandler('', key({ escape: true }))).toBe(true)
     expect(shouldPassThroughToGlobalHandler('', key({ tab: true }))).toBe(true)
     expect(shouldPassThroughToGlobalHandler('', key({ pageUp: true }))).toBe(true)
     expect(shouldPassThroughToGlobalHandler('', key({ pageDown: true }))).toBe(true)
+  })
+
+  it('does not pass through composer-owned ctrl bindings (home/end, etc.)', () => {
+    expect(shouldPassThroughToGlobalHandler('a', key({ ctrl: true }))).toBe(false)
+    expect(shouldPassThroughToGlobalHandler('e', key({ ctrl: true }))).toBe(false)
+    expect(shouldPassThroughToGlobalHandler('r', key())).toBe(false)
   })
 })
