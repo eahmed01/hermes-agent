@@ -28,6 +28,19 @@ Config: ``context.headroom`` in config.yaml
     keep_head_lines: 10            (head lines preserved)
     keep_tail_lines: 5             (tail lines preserved)
 
+    # SmartCrusher-specific knobs (passed to SmartCrusherConfig)
+    # Default profile is conservative — raise max_items_after_crush to
+    # retain more rows, or raise min_tokens_to_crush to skip smaller outputs.
+    crush_smartcrusher:
+      max_items_after_crush: 50    # default 15 — biggest dial for aggressiveness
+      min_tokens_to_crush: 1000    # default 200 — skip smaller outputs
+      min_items_to_analyze: 20     # default 5 — avoid crushing short arrays
+      first_fraction: 0.35         # default 0.30 — retain more leading rows
+      last_fraction: 0.25          # default 0.15 — retain more trailing rows
+      variance_threshold: 1.5      # default 2.0 — preserve more outlier rows
+      uniqueness_threshold: 0.05   # default 0.10
+      similarity_threshold: 0.90   # default 0.80
+
 Toggle: ``hermes config set context.headroom.enabled true|false``
 """
 
@@ -84,8 +97,23 @@ def _get_crusher():
     with _crusher_lock:
         if _crusher is None:
             try:
-                from headroom import SmartCrusher
-                _crusher = SmartCrusher()
+                from headroom import SmartCrusher, SmartCrusherConfig
+
+                cfg = _config()
+                crush = cfg.get("crush_smartcrusher") or {}
+                sc_config = SmartCrusherConfig(
+                    max_items_after_crush=crush.get("max_items_after_crush", 50),
+                    min_tokens_to_crush=crush.get("min_tokens_to_crush", 1000),
+                    min_items_to_analyze=crush.get("min_items_to_analyze", 20),
+                    first_fraction=crush.get("first_fraction", 0.35),
+                    last_fraction=crush.get("last_fraction", 0.25),
+                    variance_threshold=crush.get("variance_threshold", 1.5),
+                    uniqueness_threshold=crush.get("uniqueness_threshold", 0.05),
+                    similarity_threshold=crush.get("similarity_threshold", 0.90),
+                    preserve_change_points=crush.get("preserve_change_points", True),
+                    dedup_identical_items=crush.get("dedup_identical_items", True),
+                )
+                _crusher = SmartCrusher(config=sc_config)
             except ImportError:
                 _crusher = False  # sentinel: don't retry
             except Exception as e:
