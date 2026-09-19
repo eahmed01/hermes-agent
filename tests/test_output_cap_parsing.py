@@ -141,9 +141,15 @@ class TestParseVllmTokenBasedOutputCap:
         "output tokens."
     )
 
-    def test_vllm_token_based_format(self):
-        # available output = 131072 - 65537 = 65535
-        assert parse_available_output_tokens_from_error(self._VLLM_MSG) == 65535
+    def test_vllm_truncated_at_least_count_returns_none(self):
+        # "at least" means vLLM's tokenizer truncated the prompt to
+        # max_input_tokens + 1 before validating (max_input_tokens =
+        # window - max_tokens is a hard reservation).  The reported count
+        # (65537 = 131072 - 65536 + 1) is a LOWER BOUND on the true input
+        # length, so window - count OVERESTIMATES the real output budget and
+        # a clamped-cap retry starts a blind descent that exhausts the
+        # compression budget.  Must return None → caller compresses input.
+        assert parse_available_output_tokens_from_error(self._VLLM_MSG) is None
 
     def test_vllm_without_at_least_qualifier(self):
         # Some versions omit the "at least" hedge.
@@ -153,10 +159,26 @@ class TestParseVllmTokenBasedOutputCap:
         assert parse_available_output_tokens_from_error(msg) == 31072
 
     def test_vllm_retry_fits_inside_window(self):
-        # The retried cap plus the reported input must fit in the window.
-        available = parse_available_output_tokens_from_error(self._VLLM_MSG)
+        # Exact-count (no truncation) error: the retried cap plus the
+        # reported input must fit in the window.
+        msg = ("This model's maximum context length is 131072 tokens. However, "
+               "you requested 4096 output tokens and your prompt contains "
+               "100000 input tokens, for a total of 104096 tokens.")
+        available = parse_available_output_tokens_from_error(msg)
         assert available is not None
-        assert available + 65537 <= 131072
+        assert available + 100000 <= 131072
+
+    def test_vllm_truncated_large_prompt_returns_none(self):
+        # Regression: production failure on a 262144-window vLLM server.
+        # True prompt ~197k tokens; each retry only lowered max_tokens by
+        # ~64 while the truncated count rose 65/cycle until the 3-attempt
+        # compression budget ran out.  Must route to compression instead.
+        msg = ("This model's maximum context length is 262144 tokens. However, "
+               "you requested 65081 output tokens and your prompt contains "
+               "at least 197064 input tokens, for a total of at least 262145 "
+               "tokens. Please reduce the length of the input prompt or the "
+               "number of requested output tokens.")
+        assert parse_available_output_tokens_from_error(msg) is None
 
     def test_vllm_input_alone_exceeds_window_returns_none(self):
         # Input >= window -> lowering the output cap cannot help; the caller
