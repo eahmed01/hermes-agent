@@ -1658,6 +1658,17 @@ def _normalize_tool_input_schema(schema: Any) -> Dict[str, Any]:
     return normalized
 
 
+def _sanitize_tool_name(name: str) -> str:
+    """Sanitize a tool name for the Anthropic API.
+
+    Anthropic requires tool names matching [a-zA-Z0-9_-]{1,128}.
+    Replace invalid characters with underscores and truncate.
+    """
+    import re
+    sanitized = re.sub(r"[^a-zA-Z0-9_-]", "_", name)
+    return sanitized[:128] if sanitized else "tool"
+
+
 def convert_tools_to_anthropic(tools: List[Dict]) -> List[Dict]:
     """Convert OpenAI tool definitions to Anthropic format."""
     if not tools:
@@ -1679,8 +1690,11 @@ def convert_tools_to_anthropic(tools: List[Dict]) -> List[Dict]:
             continue
         if name:
             seen_names.add(name)
+        # Sanitize tool name for Anthropic's strict pattern
+        # (^[a-zA-Z0-9_-]{1,128}$). Dots, spaces, slashes etc. are rejected.
+        safe_name = _sanitize_tool_name(name)
         anthropic_tool: Dict[str, Any] = {
-            "name": name,
+            "name": safe_name,
             "description": fn.get("description", ""),
             "input_schema": _normalize_tool_input_schema(
                 fn.get("parameters", {"type": "object", "properties": {}})
@@ -1997,7 +2011,7 @@ def _convert_assistant_message(m: Dict[str, Any]) -> Dict[str, Any]:
         blocks.append({
             "type": "tool_use",
             "id": _sanitize_tool_id(tc.get("id", "")),
-            "name": fn.get("name", ""),
+            "name": _sanitize_tool_name(fn.get("name", "")),
             "input": parsed_args,
         })
     _apply_assistant_cache_control_to_last_cacheable_block(
