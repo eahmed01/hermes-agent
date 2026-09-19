@@ -171,7 +171,7 @@ TOOLSETS = {
 
     "consultation": {
         "description": "Frontier model consultation: ask expensive models (Opus, GPT-5.5, etc.) for expert advisory on specific hard problems",
-        "tools": ["consultation.ask"],
+        "tools": ["consultation_ask"],
         "includes": []
     },
 
