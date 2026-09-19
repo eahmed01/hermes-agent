@@ -2314,14 +2314,14 @@ class TestSummaryTargetRatio:
         assert c.tail_token_budget == 200_000
 
     def test_summary_cap_scales_with_context(self):
-        """Max summary tokens should be 5% of context, capped at 12K."""
+        """Max summary tokens should be 10% of context, capped at 25K."""
         with patch("agent.context_compressor.get_model_context_length", return_value=200_000):
             c = ContextCompressor(model="test", quiet_mode=True)
-        assert c.max_summary_tokens == 10_000  # 200K * 0.05
+        assert c.max_summary_tokens == 20_000  # 200K * 0.10
 
         with patch("agent.context_compressor.get_model_context_length", return_value=1_000_000):
             c = ContextCompressor(model="test", quiet_mode=True)
-        assert c.max_summary_tokens == 12_000  # capped at 12K ceiling
+        assert c.max_summary_tokens == 25_000  # capped at 25K ceiling
 
     def test_ratio_clamped(self):
         """Ratio should be clamped to [0.10, 0.80]."""
@@ -2813,7 +2813,7 @@ class TestUpdateModelBudgets:
             comp = ContextCompressor("model-a", threshold_percent=0.50, quiet_mode=True)
         comp.update_model("model-b", context_length=10_000)
         assert comp.tail_token_budget == int(comp.threshold_tokens * comp.summary_target_ratio)
-        assert comp.max_summary_tokens == min(int(10_000 * 0.05), 4000)
+        assert comp.max_summary_tokens == min(int(10_000 * 0.10), 4000)
 
 
 class TestUpdateModelResetsCalibration:

@@ -193,8 +193,9 @@ _HISTORICAL_SUMMARY_PREFIXES = (
 _MIN_SUMMARY_TOKENS = 2000
 # Proportion of compressed content to allocate for summary
 _SUMMARY_RATIO = 0.20
-# Absolute ceiling for summary tokens (even on very large context windows)
-_SUMMARY_TOKENS_CEILING = 12_000
+# Absolute ceiling for summary tokens (even on very large context windows).
+# Bumped from 12K to 25K to reduce "lobotomize" on information-dense sessions.
+_SUMMARY_TOKENS_CEILING = 25_000
 
 # Placeholder used when pruning old tool results
 _PRUNED_TOOL_PLACEHOLDER = "[Old tool output cleared to save context space]"
@@ -896,7 +897,7 @@ class ContextCompressor(ContextEngine):
         target_tokens = int(self.threshold_tokens * self.summary_target_ratio)
         self.tail_token_budget = target_tokens
         self.max_summary_tokens = min(
-            int(context_length * 0.05), _SUMMARY_TOKENS_CEILING,
+            int(context_length * 0.10), _SUMMARY_TOKENS_CEILING,
         )
 
         # Reset cross-call calibration state captured under the PREVIOUS model.
@@ -1047,7 +1048,7 @@ class ContextCompressor(ContextEngine):
         target_tokens = int(self.threshold_tokens * self.summary_target_ratio)
         self.tail_token_budget = target_tokens
         self.max_summary_tokens = min(
-            int(self.context_length * 0.05), _SUMMARY_TOKENS_CEILING,
+            int(self.context_length * 0.10), _SUMMARY_TOKENS_CEILING,
         )
 
         if not quiet_mode:
@@ -2847,6 +2848,15 @@ This compaction should PRIORITISE preserving all information related to the focu
         # Phase 3: Generate structured summary
         summary_focus_topic = focus_topic or self._derive_auto_focus_topic(messages)
         summary = self._generate_summary(turns_to_summarize, focus_topic=summary_focus_topic)
+
+        # Log summary outcome for debugging "lobotomize" complaints
+        if summary:
+            summary_chars = len(summary)
+            summary_tokens_est = summary_chars // _CHARS_PER_TOKEN
+            logger.info(
+                "summary generated: ~%d tokens (%d chars) from %d turns",
+                summary_tokens_est, summary_chars, len(turns_to_summarize),
+            )
 
         # If summary generation failed, behavior splits on
         # ``abort_on_summary_failure`` (config: compression.abort_on_summary_failure):
