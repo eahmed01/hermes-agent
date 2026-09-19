@@ -673,6 +673,7 @@ export type GatewayEvent =
     }
   | {
       payload: {
+        _diff_error?: string
         duration_s?: number
         error?: string
         inline_diff?: string

@@ -11025,8 +11025,12 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
                 snapshot=snapshot,
                 print_fn=_cprint,
             )
-        except Exception:
+        except Exception as e:
             logger.debug("Edit diff preview failed for %s", function_name, exc_info=True)
+            try:
+                _cprint(f"\033[91m⚠ diff preview failed for {function_name}: {e}\033[0m")
+            except Exception:
+                pass
 
     # ====================================================================
     # Voice mode methods

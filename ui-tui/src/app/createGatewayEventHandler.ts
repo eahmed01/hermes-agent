@@ -741,6 +741,12 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
 
         const resultText = ev.payload.result_text ? stripAnsi(String(ev.payload.result_text)) : undefined
 
+        // Surface diff preview errors so the user sees why the diff didn't render
+        const diffError = ev.payload._diff_error
+        const summaryWithDiffError = diffError
+          ? `${ev.payload.summary || ''}${ev.payload.summary ? ' | ' : ''}${diffError}`
+          : ev.payload.summary
+
         if (inlineDiffText) {
           turnController.recordInlineDiffToolComplete(
             inlineDiffText,
@@ -755,7 +761,7 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
             ev.payload.tool_id,
             ev.payload.name,
             ev.payload.error,
-            ev.payload.summary,
+            summaryWithDiffError,
             ev.payload.duration_s,
             ev.payload.todos,
             resultText

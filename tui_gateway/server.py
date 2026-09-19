@@ -3648,9 +3648,10 @@ def _on_tool_complete(sid: str, tool_call_id: str, name: str, args: dict, result
             print_fn=rendered.append,
         ):
             payload["inline_diff"] = "\n".join(rendered)
-    except Exception:
-        pass
-    if _tool_progress_enabled(sid) or payload.get("inline_diff"):
+    except Exception as e:
+        logger.debug("Edit diff preview failed for %s", name, exc_info=True)
+        payload["_diff_error"] = f"diff preview failed: {e}"
+    if _tool_progress_enabled(sid) or payload.get("inline_diff") or payload.get("_diff_error"):
         _emit("tool.complete", sid, payload)
 
 
