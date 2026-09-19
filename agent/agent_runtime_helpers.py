@@ -2738,6 +2738,18 @@ def copy_reasoning_content_for_api(agent, source_msg: dict, api_msg: dict) -> No
         return
 
     needs_thinking_pad = agent._needs_thinking_reasoning_pad()
+    needs_qwen_replay = agent._needs_qwen_thinking_replay()
+
+    # Qwen3.6+ / vLLM preserve_thinking path.
+    # vLLM >=0.20 reads ``reasoning`` on assistant messages (not
+    # ``reasoning_content``), so we leave ``reasoning`` alone and skip the
+    # reasoning_content promotions below.  The unconditional pop at
+    # conversation_loop.py is also gated on ``_needs_qwen_thinking_replay()``.
+    if needs_qwen_replay and not needs_thinking_pad:
+        # Keep whatever is already on api_msg (reasoning copied from source_msg).
+        # Strip reasoning_content so a strict vLLM doesn't choke on it.
+        api_msg.pop("reasoning_content", None)
+        return
 
     # 1. Explicit reasoning_content already set.
     #
@@ -2848,6 +2860,7 @@ def reapply_reasoning_echo_for_provider(agent, api_messages: list) -> int:
     removed.
     """
     needs_pad = agent._needs_thinking_reasoning_pad()
+    needs_qwen_replay = agent._needs_qwen_thinking_replay()
     changed = 0
     for api_msg in api_messages:
         if api_msg.get("role") != "assistant":
@@ -2857,6 +2870,13 @@ def reapply_reasoning_echo_for_provider(agent, api_messages: list) -> int:
                 continue
             copy_reasoning_content_for_api(agent, api_msg, api_msg)
             if api_msg.get("reasoning_content"):
+                changed += 1
+        elif needs_qwen_replay:
+            # Qwen3.6+ preserve_thinking: keep the ``reasoning`` field,
+            # strip any stale ``reasoning_content`` that a prior provider
+            # may have injected.
+            if "reasoning_content" in api_msg:
+                api_msg.pop("reasoning_content", None)
                 changed += 1
         else:
             # Strict provider — strip any stale reasoning_content pad left

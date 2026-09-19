@@ -485,6 +485,7 @@ class AIAgent:
         checkpoint_max_total_size_mb: int = 500,
         checkpoint_max_file_size_mb: int = 10,
         pass_session_id: bool = False,
+        preserve_thinking_replay: bool = False,
     ):
         """Forwarder — see ``agent.agent_init.init_agent``."""
         from agent.agent_init import init_agent
@@ -560,6 +561,7 @@ class AIAgent:
             checkpoint_max_total_size_mb=checkpoint_max_total_size_mb,
             checkpoint_max_file_size_mb=checkpoint_max_file_size_mb,
             pass_session_id=pass_session_id,
+            preserve_thinking_replay=preserve_thinking_replay,
         )
 
     def _get_session_db_for_recall(self):
@@ -5449,6 +5451,7 @@ class AIAgent:
             self._needs_deepseek_tool_reasoning()
             or self._needs_kimi_tool_reasoning()
             or self._needs_mimo_tool_reasoning()
+            or self._needs_qwen_thinking_replay()
         )
         self._thinking_pad_cache = (key, result)
         return result
@@ -5503,6 +5506,19 @@ class AIAgent:
             or base_url_host_matches(self.base_url, "api.xiaomimimo.com")
             or base_url_host_matches(self.base_url, "xiaomimimo.com")
         )
+
+    def _needs_qwen_thinking_replay(self) -> bool:
+        """Return True when the user has enabled preserve_thinking replay.
+
+        Qwen3.6+ was trained to leverage historical thinking traces when the
+        ``preserve_thinking`` chat-template option is set (see
+        https://huggingface.co/Qwen/Qwen3.6-27B). vLLM >=0.20 expects the
+        reasoning under the ``reasoning`` field (not ``reasoning_content``),
+        so we replay under that field when this flag is on.
+
+        Controlled by ``agent.preserve_thinking_replay`` config (default False).
+        """
+        return bool(getattr(self, "_preserve_thinking_replay", False))
 
     def _copy_reasoning_content_for_api(self, source_msg: dict, api_msg: dict) -> None:
         """Forwarder — see ``agent.agent_runtime_helpers.copy_reasoning_content_for_api``."""

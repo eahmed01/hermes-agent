@@ -812,7 +812,8 @@ def run_conversation(
 
             # Remove 'reasoning' field - it's for trajectory storage only
             # We've copied it to 'reasoning_content' for the API above
-            if "reasoning" in api_msg:
+            # (except for Qwen3.6+ preserve_thinking replay, which keeps 'reasoning')
+            if "reasoning" in api_msg and not agent._needs_qwen_thinking_replay():
                 api_msg.pop("reasoning")
             # Remove finish_reason - not accepted by strict APIs (e.g. Mistral)
             if "finish_reason" in api_msg:
