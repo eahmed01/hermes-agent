@@ -323,3 +323,92 @@ def test_transform_sudo_command_pipes_one_password_line_per_invocation(monkeypat
 def test_count_real_sudo_invocations_ignores_mentions(monkeypatch):
     assert terminal_tool._count_real_sudo_invocations("grep sudo README.md") == 0
     assert terminal_tool._count_real_sudo_invocations("sudo a; sudo b") == 2
+
+
+# =============================================================================
+# Sudo password cache security: bytearray zeroing, TTL, atexit
+# =============================================================================
+
+import time as _time
+
+
+def test_cache_stores_bytearray_not_str(monkeypatch):
+    """Cached password should be bytearray (mutable), not plain str."""
+    monkeypatch.delenv("SUDO_PASSWORD", raising=False)
+    monkeypatch.delenv("HERMES_INTERACTIVE", raising=False)
+
+    terminal_tool._set_cached_sudo_password("secret")
+    scope = terminal_tool._get_sudo_password_cache_scope()
+    entry = terminal_tool._sudo_password_cache.get(scope)
+    assert entry is not None
+    # Entry is (expiry_float, bytearray)
+    assert isinstance(entry, tuple)
+    assert len(entry) == 2
+    assert isinstance(entry[1], bytearray)
+
+
+def test_cache_ttl_expiry(monkeypatch):
+    """Expired entries should return empty string and be removed from cache."""
+    monkeypatch.delenv("SUDO_PASSWORD", raising=False)
+    monkeypatch.delenv("HERMES_INTERACTIVE", raising=False)
+
+    terminal_tool._set_cached_sudo_password("secret")
+    scope = terminal_tool._get_sudo_password_cache_scope()
+
+    # Verify it's cached
+    assert terminal_tool._get_cached_sudo_password() == "secret"
+
+    # Artificially expire by backdating the expiry timestamp
+    with terminal_tool._sudo_password_cache_lock:
+        expiry, data = terminal_tool._sudo_password_cache[scope]
+        terminal_tool._sudo_password_cache[scope] = (
+            _time.time() - 1,  # expired 1 second ago
+            data,
+        )
+
+    # Next read should return empty and remove the entry
+    assert terminal_tool._get_cached_sudo_password() == ""
+    assert scope not in terminal_tool._sudo_password_cache
+
+
+def test_cache_clear_zeroes_bytes(monkeypatch):
+    """_reset_cached_sudo_passwords should zero the underlying bytearray."""
+    monkeypatch.delenv("SUDO_PASSWORD", raising=False)
+    monkeypatch.delenv("HERMES_INTERACTIVE", raising=False)
+
+    terminal_tool._set_cached_sudo_password("secret")
+    scope = terminal_tool._get_sudo_password_cache_scope()
+    entry = terminal_tool._sudo_password_cache[scope]
+    data = entry[1]
+
+    # Confirm bytes are set
+    assert bytes(data) == b"secret"
+
+    # Clear should zero the bytes in-place, then remove the entry
+    terminal_tool._reset_cached_sudo_passwords()
+
+    # Entry should be removed from the dict
+    assert not terminal_tool._sudo_password_cache
+    # Bytes should be zeroed (bytearray still exists on the stack as `data`)
+    assert all(b == 0 for b in data)
+
+
+def test_cache_invalidation_zeroes_bytes(monkeypatch):
+    """Setting empty password should zero old bytes before dropping entry."""
+    monkeypatch.delenv("SUDO_PASSWORD", raising=False)
+    monkeypatch.delenv("HERMES_INTERACTIVE", raising=False)
+
+    terminal_tool._set_cached_sudo_password("secret")
+    scope = terminal_tool._get_sudo_password_cache_scope()
+    data = terminal_tool._sudo_password_cache[scope][1]
+
+    # Clear with empty string (same path as auth-failure invalidation)
+    terminal_tool._set_cached_sudo_password("")
+
+    assert scope not in terminal_tool._sudo_password_cache
+    assert all(b == 0 for b in data)
+
+
+def test_cache_ttl_constant_is_15_minutes():
+    """TTL should match native sudo's default timestamp_timeout."""
+    assert terminal_tool._SUDO_PASSWORD_TTL == 15 * 60
