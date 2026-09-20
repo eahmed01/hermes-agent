@@ -27,6 +27,8 @@ describe('applyDisplay', () => {
             inline_diffs: false,
             show_reasoning: true,
             streaming: false,
+            timestamp_format: '%a %H:%M',
+            timestamps: true,
             tui_compact: true,
             tui_statusbar: false
           }
@@ -41,8 +43,10 @@ describe('applyDisplay', () => {
     expect(s.detailsMode).toBe('expanded')
     expect(s.inlineDiffs).toBe(false)
     expect(s.showReasoning).toBe(true)
+    expect(s.showTimestamps).toBe(true)
     expect(s.statusBar).toBe('off')
     expect(s.streaming).toBe(false)
+    expect(s.timestampFormat).toBe('%a %H:%M')
   })
 
   it('coerces legacy true + "on" alias to top', () => {
@@ -67,6 +71,9 @@ describe('applyDisplay', () => {
     expect(s.statusBar).toBe('top')
     expect(s.streaming).toBe(true)
     expect(s.sections).toEqual({})
+    // No timestamps key: feature stays off with the CLI's default format.
+    expect(s.showTimestamps).toBe(false)
+    expect(s.timestampFormat).toBe('%H:%M')
   })
 
   it('uses documented mouse_tracking with legacy tui_mouse fallback', () => {

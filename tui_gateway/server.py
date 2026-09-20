@@ -4950,6 +4950,12 @@ def _history_to_messages(history: list[dict]) -> list[dict]:
         if not content_text.strip() and not has_reasoning:
             continue
         msg = {"role": role, "text": content_text}
+        # Per-message wall-clock (unix seconds) from state.db. Role-strict
+        # user/assistant (parity with the classic CLI's display.timestamps):
+        # tool rows carry no timestamp (they merge into the client's tool
+        # shelf) and the TUI flow never persists system rows.
+        if role in ("user", "assistant") and isinstance(m.get("timestamp"), (int, float)):
+            msg["timestamp"] = m["timestamp"]
         if role == "assistant":
             for key in reasoning_keys:
                 if key in m and m.get(key) is not None:
@@ -7936,7 +7942,7 @@ def _(rid, params: dict) -> dict:
                     "summary": summary,
                     "usage": usage,
                     "info": info,
-                    "messages": messages,
+                    "messages": _history_to_messages(messages),
                 },
             )
         finally:

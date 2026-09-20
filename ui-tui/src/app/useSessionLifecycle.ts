@@ -55,7 +55,7 @@ export const writeActiveSessionFile = (sessionId: null | string, file = process.
 export const liveSessionInflightMessages = (inflight?: null | SessionInflightTurn): Msg[] => {
   const user = String(inflight?.user ?? '').trim()
 
-  return user ? [{ role: 'user', text: user }] : []
+  return user ? [{ role: 'user', text: user, timestamp: Date.now() / 1000 }] : []
 }
 
 export const hydrateLiveSessionInflight = (inflight?: null | SessionInflightTurn) => {

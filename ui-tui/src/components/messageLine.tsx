@@ -16,6 +16,7 @@ import {
   sanitizeAnsiForRender,
   stripAnsi
 } from '../lib/text.js'
+import { formatMessageTimestamp } from '../lib/timestamp.js'
 import type { Theme } from '../theme.js'
 import type { ActiveTool, DetailsMode, Msg, SectionVisibility } from '../types.js'
 
@@ -36,7 +37,9 @@ export const MessageLine = memo(function MessageLine({
   msg,
   prev,
   sections,
+  showTimestamps = false,
   t,
+  timestampFormat = '%H:%M',
   tools = []
 }: MessageLineProps) {
   // Per-section overrides win over the global mode, so resolve each section
@@ -233,7 +236,19 @@ export const MessageLine = memo(function MessageLine({
           </Text>
         </NoSelect>
 
-        <Box width={transcriptBodyWidth(cols, msg.role, t.brand.prompt, TERMUX_TUI_MODE)}>{content}</Box>
+        <Box flexDirection="column" width={transcriptBodyWidth(cols, msg.role, t.brand.prompt, TERMUX_TUI_MODE)}>
+          {content}
+
+          {showTimestamps && msg.timestamp && (
+            <Box flexDirection="row" justifyContent="flex-end" marginTop={1}>
+              <NoSelect>
+                <Text color={t.color.muted} dim>
+                  {formatMessageTimestamp(msg.timestamp, timestampFormat)}
+                </Text>
+              </NoSelect>
+            </Box>
+          )}
+        </Box>
       </Box>
     </Box>
   )
@@ -254,6 +269,8 @@ interface MessageLineProps {
   // the transcript or when spacing is irrelevant.
   prev?: Msg
   sections?: SectionVisibility
+  showTimestamps?: boolean
   t: Theme
+  timestampFormat?: string
   tools?: ActiveTool[]
 }

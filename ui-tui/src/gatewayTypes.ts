@@ -20,6 +20,7 @@ export interface GatewayTranscriptMessage {
   name?: string
   role: 'assistant' | 'system' | 'tool' | 'user'
   text?: string
+  timestamp?: number  // unix seconds, from state.db (all 7 history surfaces via _history_to_messages)
 }
 
 // ── Commands / completion ────────────────────────────────────────────
@@ -162,6 +163,8 @@ export interface ConfigDisplayConfig {
   show_reasoning?: boolean
   streaming?: boolean
   thinking_mode?: string
+  timestamp_format?: string
+  timestamps?: boolean
   /**
    * Nudge the user toward the /agents spawn-tree dashboard the first time a
    * turn starts delegating, via a one-time transient activity hint.  Opens

@@ -119,6 +119,7 @@ export interface Msg {
   text: string
   thinking?: string
   thinkingTokens?: number
+  timestamp?: number  // unix seconds; user/assistant messages only
   toolTokens?: number
   tools?: string[]
   todos?: TodoItem[]

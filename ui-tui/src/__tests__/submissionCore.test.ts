@@ -99,8 +99,9 @@ describe('submissionCore.submitPrompt — synchronous busy (queue-race fix)', ()
 
   it('after detect_drop resolves (no file), it issues prompt.submit', async () => {
     const { calls, gw, resolveDrop } = makeDeferredGateway()
+    const deps = makeDeps(gw)
 
-    submitPrompt('hi there', makeDeps(gw))
+    submitPrompt('hi there', deps)
     expect(calls).toEqual(['input.detect_drop'])
 
     resolveDrop({ matched: false })
@@ -108,6 +109,11 @@ describe('submissionCore.submitPrompt — synchronous busy (queue-race fix)', ()
     await Promise.resolve()
 
     expect(calls).toContain('prompt.submit')
+    expect(deps.appendMessage).toHaveBeenCalledWith({
+      role: 'user',
+      text: 'hi there',
+      timestamp: expect.any(Number)
+    })
   })
 })
 

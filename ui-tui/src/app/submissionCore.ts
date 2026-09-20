@@ -65,7 +65,7 @@ export function submitPrompt(text: string, deps: SubmitPromptDeps, showUserMessa
     deps.setLastUserMsg(text)
 
     if (show) {
-      deps.appendMessage({ role: 'user', text: displayText })
+      deps.appendMessage({ role: 'user', text: displayText, timestamp: Date.now() / 1000 })
     }
 
     patchUiState({ busy: true, status: 'running…' })

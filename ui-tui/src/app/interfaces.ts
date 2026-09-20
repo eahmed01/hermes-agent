@@ -175,6 +175,8 @@ export interface UiState {
   sections: SectionVisibility
   sessionTitle: string
   showReasoning: boolean
+  showTimestamps: boolean
+  timestampFormat: string
   indicatorStyle: IndicatorStyle
   sid: null | string
   status: string

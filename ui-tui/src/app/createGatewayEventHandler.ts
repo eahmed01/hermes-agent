@@ -933,6 +933,21 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
 
         if (!wasInterrupted) {
           const msgs: Msg[] = finalMessages.length ? finalMessages : [{ role: 'assistant', text: finalText }]
+
+          if (finalText.trim()) {
+            // Degenerate turn (empty finalText): skip — stamping the last
+            // narration segment would break the "final reply only" rule.
+            const now = Date.now() / 1000
+
+            for (let i = msgs.length - 1; i >= 0; i -= 1) {
+              if (msgs[i]!.role === 'assistant') {
+                msgs[i] = { ...msgs[i]!, timestamp: now }
+
+                break
+              }
+            }
+          }
+
           msgs.forEach(appendMessage)
 
           // Pet beat: celebrate a finished plan, otherwise a clean-finish wave.

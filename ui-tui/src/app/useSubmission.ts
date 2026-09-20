@@ -99,7 +99,7 @@ export function useSubmission(opts: UseSubmissionOptions) {
 
   const shellExec = useCallback(
     (cmd: string) => {
-      appendMessage({ role: 'user', text: `!${cmd}` })
+      appendMessage({ role: 'user', text: `!${cmd}`, timestamp: Date.now() / 1000 })
       patchUiState({ busy: true, status: 'running…' })
 
       gw.request<ShellExecResponse>('shell.exec', { command: cmd })

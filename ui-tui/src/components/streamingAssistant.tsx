@@ -79,7 +79,9 @@ export const StreamingAssistant = memo(function StreamingAssistant({
             msg={block.msg}
             prev={prev}
             sections={sections}
+            showTimestamps={ui.showTimestamps}
             t={ui.theme}
+            timestampFormat={ui.timestampFormat}
             {...(block.tools ? { tools: block.tools } : {})}
           />
         )

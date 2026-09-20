@@ -644,7 +644,7 @@ export function useMainApp(gw: GatewayClient) {
             text: '',
             tools: [buildToolTrailLine('clarify', clarify.question)]
           })
-          appendMessage({ role: 'user', text: answer })
+          appendMessage({ role: 'user', text: answer, timestamp: Date.now() / 1000 })
           patchUiState({ status: 'running…' })
         } else {
           // Esc / Ctrl+C cancel: persist the question + options as a system

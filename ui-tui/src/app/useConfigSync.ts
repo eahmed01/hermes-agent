@@ -196,6 +196,11 @@ export async function hydrateFullConfig(
   return cfg
 }
 
+// display.timestamp_format: strftime pattern from the classic CLI.
+// Non-string (hand-edited YAML) falls back to the default.
+export const normalizeTimestampFormat = (raw: unknown): string =>
+  typeof raw === 'string' && raw ? raw : '%H:%M'
+
 export const applyDisplay = (
   cfg: ConfigFullResponse | null,
   setBell: (v: boolean) => void,
@@ -228,8 +233,10 @@ export const applyDisplay = (
     pasteCollapseChars: _pasteCollapseCharsFromConfig(cfg),
     sections: resolveSections(d.sections),
     showReasoning: !!d.show_reasoning,
+    showTimestamps: !!d.timestamps,  // truthy — matches showReasoning (above) and the CLI
     statusBar: normalizeStatusBar(d.tui_statusbar),
-    streaming: d.streaming !== false
+    streaming: d.streaming !== false,
+    timestampFormat: normalizeTimestampFormat(d.timestamp_format)
   })
 }
 

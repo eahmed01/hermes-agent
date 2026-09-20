@@ -961,6 +961,22 @@ def test_history_to_messages_renders_multimodal_content():
     ]
 
 
+def test_history_to_messages_passes_through_timestamps():
+    history = [
+        {"role": "user", "content": "hi", "timestamp": 1758123456.0},
+        {"role": "tool", "tool_call_id": "t1", "content": "result", "timestamp": 1758123456.5},
+        {"role": "assistant", "content": "hello", "timestamp": 1758123457},
+        {"role": "user", "content": "no stamp"},
+    ]
+
+    out = server._history_to_messages(history)
+
+    assert out[0] == {"role": "user", "text": "hi", "timestamp": 1758123456.0}
+    assert out[1]["role"] == "tool" and "timestamp" not in out[1]
+    assert out[2] == {"role": "assistant", "text": "hello", "timestamp": 1758123457}
+    assert "timestamp" not in out[3]
+
+
 def test_session_resume_uses_parent_lineage_for_display(monkeypatch):
     captured = {}
 
@@ -4007,7 +4023,13 @@ def test_config_set_personality_preserves_history_and_returns_info(monkeypatch):
 
 def test_session_compress_uses_compress_helper(monkeypatch):
     agent = types.SimpleNamespace()
-    server._sessions["sid"] = _session(agent=agent)
+    server._sessions["sid"] = _session(
+        agent=agent,
+        history=[
+            {"role": "user", "content": "hi", "timestamp": 1758123456.0},
+            {"role": "assistant", "content": "hello", "timestamp": 1758123457.0},
+        ],
+    )
 
     monkeypatch.setattr(
         server,
@@ -4022,6 +4044,9 @@ def test_session_compress_uses_compress_helper(monkeypatch):
         )
 
     assert resp["result"]["removed"] == 2
+    rows = resp["result"]["messages"]
+    assert rows[0] == {"role": "user", "text": "hi", "timestamp": 1758123456.0}
+    assert rows[1] == {"role": "assistant", "text": "hello", "timestamp": 1758123457.0}
     assert resp["result"]["usage"]["total"] == 42
     emit.assert_any_call("session.info", "sid", {"model": "x"})
     # Final status.update clears the pinned "compressing" indicator so the
