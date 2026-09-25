@@ -235,10 +235,33 @@ def _load_consultation_config() -> Optional[Dict[str, Any]]:
 
 def _estimate_cost(input_chars: int, max_output_tokens: int,
                    input_price: float, output_price: float) -> float:
-    input_tokens = max(input_chars // 4, 1)
-    input_cost = (input_tokens / 1_000_000) * input_price
+    input_cost = _estimate_input_cost(input_chars, input_price)
     output_cost = (max_output_tokens / 1_000_000) * output_price
     return round(input_cost + output_cost, 4)
+
+
+def _estimate_input_cost(input_chars: int, input_price: float) -> float:
+    """Estimate prompt cost using the same chars-to-tokens approximation."""
+    input_tokens = max(input_chars // 4, 1)
+    return (input_tokens / 1_000_000) * input_price
+
+
+def _max_output_tokens_for_budget(
+    input_chars: int,
+    remaining_budget: float,
+    max_output_tokens: int,
+    input_price: float,
+    output_price: float,
+) -> int:
+    """Cap output by configured tokens and the budget left after estimated input."""
+    estimated_input_cost = _estimate_input_cost(input_chars, input_price)
+    output_budget = max(remaining_budget - estimated_input_cost, 0.0)
+    if output_budget <= 0:
+        return 0
+    if output_price <= 0:
+        return max_output_tokens
+    max_output_by_budget = int((output_budget * 1_000_000) / output_price)
+    return min(max_output_tokens, max_output_by_budget)
 
 
 def _resolve_api_key(model_config: Dict[str, Any]) -> str:
@@ -553,9 +576,20 @@ async def consultation_ask(args: Dict[str, Any]) -> str:
         budget_per_call,
         session_budget - session_spent if session_budget > 0 else budget_per_call,
     )
-    max_output_by_budget = int((remaining_budget * 1_000_000) / output_price)
-    effective_max_output = min(max_output_tokens, max_output_by_budget, int(remaining_budget * 1000))
-    effective_max_output = max(effective_max_output, 256)
+    effective_max_output = _max_output_tokens_for_budget(
+        input_chars=len(full_text),
+        remaining_budget=remaining_budget,
+        max_output_tokens=max_output_tokens,
+        input_price=input_price,
+        output_price=output_price,
+    )
+    if effective_max_output < 256:
+        return json.dumps({
+            "error": (
+                "Insufficient consultation budget for the estimated input and "
+                "minimum 256-token response."
+            ),
+        })
 
     # 6. API call
     try:
