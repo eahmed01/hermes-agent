@@ -230,7 +230,14 @@ _PROVIDER_MODELS: dict[str, list[str]] = {
         "gpt-4o",
         "gpt-4o-mini",
     ],
+    # >>> managed:curated-openai-api (synced from ~/.hermes/models.yaml by ~/.hermes/scripts/sync_models.py — do not edit between markers)
     "openai-api": [
+        "gpt-6-sol",
+        "gpt-6-sol-pro",
+        "gpt-6-luna",
+        "gpt-6-luna-pro",
+        "gpt-6-astra",
+        "gpt-6-astra-pro",
         "gpt-5.6-sol",
         "gpt-5.6-sol-pro",
         "gpt-5.6-terra",
@@ -248,6 +255,7 @@ _PROVIDER_MODELS: dict[str, list[str]] = {
         "gpt-4o",
         "gpt-4o-mini",
     ],
+    # <<< managed:curated-openai-api
     "openai-codex": _codex_curated_models(),
     "xai-oauth": _xai_curated_models(),
     "copilot-acp": [
