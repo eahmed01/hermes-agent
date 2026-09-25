@@ -27,7 +27,8 @@ All fields are optional. Missing values inherit from the ``default`` skin.
       ui_ok: "#4caf50"                   # Success indicators
       ui_error: "#ef5350"                # Error indicators
       ui_warn: "#ffa726"                 # Warning indicators
-      prompt: "#FFF8DC"                  # Prompt text color
+      prompt: "#FFF8DC"                  # Prompt symbol color
+      user_text: "#FF4444"               # User's typed input text (empty = terminal default fg)
       input_rule: "#CD7F32"              # Input area horizontal rule
       response_border: "#FFD700"         # Response box border (ANSI)
       status_bar_bg: "#1a1a2e"           # Status bar background
@@ -859,6 +860,7 @@ def get_prompt_toolkit_style_overrides() -> Dict[str, str]:
     # color schemes).  Skins can opt into a colored prompt by setting
     # `prompt` explicitly in their YAML.
     prompt = skin.get_color("prompt", "")
+    user_text = skin.get_color("user_text", "")
     input_rule = skin.get_color("input_rule", "#CD7F32")
     title = skin.get_color("banner_title", "#FFD700")
     text = skin.get_color("banner_text", "#FFF8DC")
@@ -881,11 +883,11 @@ def get_prompt_toolkit_style_overrides() -> Dict[str, str]:
     menu_meta_current_bg = skin.get_color("completion_menu_meta_current_bg", menu_current_bg)
 
     return {
-        # Typed input always uses terminal default fg/bg so it's
-        # readable in both light and dark Terminal.app modes.  The
-        # skin's `prompt` color (if any) only styles the prompt symbol,
-        # NOT the user's typed text.
-        "input-area": "",
+        # Typed input uses the terminal default fg/bg by default so it's
+        # readable in both light and dark Terminal.app modes.  Skins can
+        # opt into colored typed text by setting `user_text`, and into a
+        # colored prompt symbol by setting `prompt`.
+        "input-area": user_text,
         "placeholder": f"{dim} italic",
         "prompt": prompt,
         "prompt-working": f"{dim} italic",
