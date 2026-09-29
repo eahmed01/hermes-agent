@@ -74,6 +74,28 @@ def test_render_session_markdown_renders_structured_content_as_json_fence():
     assert '"type": "text"' in rendered
 
 
+def test_render_session_markdown_includes_system_prompt_before_messages():
+    prompt = "# Fonda Agent\n\n## Tools\nUse terminal carefully.\n"
+    session = _session(system_prompt=prompt)
+    rendered = render_session_markdown(session)
+
+    assert f"System prompt: `{len(prompt)}` chars" in rendered
+    assert "## System prompt" in rendered
+    # Section sits between the header block and the conversation.
+    assert rendered.index("## System prompt") < rendered.index("## Messages")
+    # The prompt is fenced, so its own headings stay inert document text.
+    body = rendered.split("## System prompt\n", 1)[1]
+    fenced = body.split("```", 1)[1].lstrip("\n")
+    assert fenced.startswith("# Fonda Agent")
+    assert "## Tools" in fenced
+
+
+def test_render_session_markdown_omits_system_prompt_when_absent():
+    rendered = render_session_markdown(_session())
+
+    assert "## System prompt" not in rendered
+
+
 def test_safe_session_filename_is_deterministic_and_path_safe():
     filename = safe_session_filename(
         _session(id="20260706_123456_abcd1234", title="Bad / title: * ?"), fmt="qmd"

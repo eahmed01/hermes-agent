@@ -69,6 +69,18 @@ def _render_tool_calls(tool_calls: Any) -> str:
     return "\n\n## Tool calls\n\n```json\n" + json.dumps(tool_calls, ensure_ascii=False, indent=2) + "\n```"
 
 
+def _fence(text: str) -> str:
+    """Wrap text in a code fence long enough to never collide with its content.
+
+    The system prompt is itself markdown with headings; fencing it keeps the
+    export's heading structure intact.
+    """
+    fence = "```"
+    while fence in text:
+        fence += "`"
+    return f"{fence}\n{text.rstrip()}\n{fence}"
+
+
 def _session_id(session: dict[str, Any]) -> str:
     return str(session.get("id") or session.get("session_id") or "unknown-session")
 
@@ -149,6 +161,12 @@ def _export_body_without_hash(session: dict[str, Any], *, fmt: str, exported_at:
         parts.append(f"Source: `{session.get('source')}`\n")
     if session.get("cwd"):
         parts.append(f"Working directory: `{session.get('cwd')}`\n")
+
+    system_prompt = session.get("system_prompt")
+    if system_prompt:
+        parts.append(f"System prompt: `{len(system_prompt)}` chars\n")
+        parts.append("## System prompt\n")
+        parts.append(_fence(str(system_prompt)) + "\n")
 
     parts.append(_render_messages(session))
     parts.append("## Export verification\n")
@@ -238,7 +256,7 @@ def redact_session_data(session: dict[str, Any]) -> dict[str, Any]:
         return value
 
     redacted = dict(session)
-    for key in ("messages", "segments"):
+    for key in ("messages", "segments", "system_prompt"):
         if key in redacted and redacted[key] is not None:
             redacted[key] = _clean(redacted[key])
     return redacted
