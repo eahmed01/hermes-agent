@@ -25,6 +25,8 @@ export function hotkeys(): [string, string][] {
     [action + '+D', h.exit],
     [action + '+G / Alt+G', h.openEditor],
     [action + '+L', h.redraw],
+    ['Ctrl+R', h.toggleReasoning],
+    ['Ctrl+T', h.toggleToolCalls],
     [paste + '+V / /paste', h.paste],
     ['Esc Esc', h.discardDraft],
     ['Tab', h.applyCompletion],

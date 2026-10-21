@@ -317,11 +317,15 @@ def _prepare_tool_result_metadata(sid: str, tool_call_id: str, name: str, args: 
     session = _sessions.get(sid)
     snapshot = session.setdefault("edit_snapshots", {}).pop(tool_call_id, None) if session is not None else None
     metadata = {}
-    with contextlib.suppress(Exception):
+    try:
         from agent.display import render_edit_diff_with_delta
         rendered: list[str] = []
         if render_edit_diff_with_delta(name, result, function_args=args, snapshot=snapshot, print_fn=rendered.append):
             metadata["inline_diff"] = "\n".join(rendered)
+    except Exception as e:
+        # Surface the failure so the client can show why no diff preview appeared.
+        logger.debug("Edit diff preview failed for %s", name, exc_info=True)
+        metadata["diff_error"] = f"diff preview failed: {e}"
     if session is not None:
         session.setdefault("tool_result_metadata", {})[tool_call_id] = metadata
     return {"tool_result_metadata": metadata} if metadata else {}

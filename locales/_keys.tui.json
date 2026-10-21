@@ -394,6 +394,8 @@
   "hints.redraw",
   "hints.sessionSwitcher",
   "hints.shell",
+  "hints.toggleReasoning",
+  "hints.toggleToolCalls",
   "hints.undoRedo",
   "hubs.agentControls.loadingTranscript",
   "hubs.agentControls.notQueued",

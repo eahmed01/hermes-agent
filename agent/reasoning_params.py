@@ -237,6 +237,19 @@ class ReasoningParamsMixin:
         """True when the current provider is Xiaomi MiMo thinking mode."""
         return matches_reasoning_echo_family("mimo", (self.provider or "").lower(), self.model, self.base_url)
 
+    def _needs_qwen_thinking_replay(self) -> bool:
+        """Return True when the user has enabled preserve_thinking replay.
+
+        Qwen3.6+ was trained to leverage historical thinking traces when the
+        ``preserve_thinking`` chat-template option is set (see
+        https://huggingface.co/Qwen/Qwen3.6-27B). vLLM >=0.20 expects the
+        reasoning under the ``reasoning`` field (not ``reasoning_content``),
+        so the replay route keeps that carrier and drops the pad tier.
+
+        Controlled by ``agent.preserve_thinking_replay`` config (default False).
+        """
+        return bool(getattr(self, "preserve_thinking_replay", False))
+
     _copy_reasoning_content_for_api = _forward("agent.agent_runtime_helpers", "copy_reasoning_content_for_api")
 
     _reapply_reasoning_echo_for_provider = _forward("agent.agent_runtime_helpers", "reapply_reasoning_echo_for_provider")

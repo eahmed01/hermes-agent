@@ -83,6 +83,18 @@ def _render_messages(session: dict[str, Any]) -> str:
     return "\n".join(parts).rstrip() + "\n"
 
 
+def _fence(text: str) -> str:
+    """Wrap text in a code fence long enough to never collide with its content.
+
+    The system prompt is itself markdown with headings; fencing it keeps the
+    export's heading structure intact.
+    """
+    fence = "```"
+    while fence in text:
+        fence += "`"
+    return f"{fence}\n{text.rstrip()}\n{fence}"
+
+
 def _export_body_without_hash(session: dict[str, Any], *, fmt: str, exported_at: float) -> str:
     session_id = _session_id(session)
     exported_iso = _iso_timestamp(exported_at)
@@ -108,6 +120,10 @@ def _export_body_without_hash(session: dict[str, Any], *, fmt: str, exported_at:
         f"# {session.get('title') or session_id}\n", f"Session ID: `{session_id}`\n",
         *([f"Source: `{session.get('source')}`\n"] if session.get("source") else []),
         *([f"Working directory: `{session.get('cwd')}`\n"] if session.get("cwd") else []),
+        *([f"System prompt: `{len(session.get('system_prompt'))}` chars\n",
+           "## System prompt\n",
+           _fence(str(session.get("system_prompt"))) + "\n"]
+         if session.get("system_prompt") else []),
         _render_messages(session),
         f"{_VERIFICATION_HEADING}\n",
         f"- Session id: `{session_id}`",
@@ -183,7 +199,7 @@ def redact_session_data(session: dict[str, Any]) -> dict[str, Any]:
             return {k: _clean(v) for k, v in value.items()}
         return value
 
-    return {**session, **{k: _clean(session[k]) for k in ("messages", "segments") if session.get(k) is not None}}
+    return {**session, **{k: _clean(session[k]) for k in ("messages", "segments", "system_prompt") if session.get(k) is not None}}
 
 
 def _export_dir(output_dir: Path | str) -> Path:

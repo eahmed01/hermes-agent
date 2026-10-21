@@ -5787,6 +5787,7 @@ export interface ToolCompletePayload {
   summary?: string | null
   result_text?: string | null
   inline_diff?: string | null
+  diff_error?: string | null
   todos?: unknown[] | null
   revision?: number | null
   labels?: ToolLabel[] | null

@@ -9,6 +9,7 @@ import {
   handleIdleHotkeyExit,
   resolveCtrlCComposerAction,
   resolveDoubleEscAction,
+  sectionHotkey,
   shouldDetachEditedHistoryInput,
   shouldFallThroughForScroll
 } from '../app/useInputHandlers.js'
@@ -119,6 +120,31 @@ describe('resolveDoubleEscAction — double-Esc interrupts only a busy, draft-fr
 
   it('keeps clearing an idle draft (existing discard convention)', () => {
     expect(resolveDoubleEscAction({ busy: false, hasDraft: true, hasSession: true })).toBe('clear')
+  })
+})
+
+describe('sectionHotkey — ctrl-letter → details section mapping', () => {
+  it('maps Ctrl+R to the reasoning (thinking) section', () => {
+    expect(sectionHotkey('r', { ctrl: true })).toBe('thinking')
+  })
+
+  it('maps Ctrl+T to the tools section', () => {
+    expect(sectionHotkey('t', { ctrl: true })).toBe('tools')
+  })
+
+  it('is case-insensitive', () => {
+    expect(sectionHotkey('R', { ctrl: true })).toBe('thinking')
+    expect(sectionHotkey('T', { ctrl: true })).toBe('tools')
+  })
+
+  it('ignores unmodified letters', () => {
+    expect(sectionHotkey('r', { ctrl: false })).toBeUndefined()
+    expect(sectionHotkey('t', { ctrl: false })).toBeUndefined()
+  })
+
+  it('returns undefined for unbound ctrl letters', () => {
+    expect(sectionHotkey('x', { ctrl: true })).toBeUndefined()
+    expect(sectionHotkey('d', { ctrl: true })).toBeUndefined()
   })
 })
 

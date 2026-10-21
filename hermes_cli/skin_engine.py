@@ -498,7 +498,8 @@ def get_active_goodbye(fallback: str = "Goodbye! ☤") -> str:
 # Palette resolution order for prompt_toolkit styles: (name, skin color key, fallback). A
 # fallback starting with "@" names an earlier entry (so a missing key inherits its remapped value).
 _STYLE_PALETTE = (
-    ("prompt", "prompt", ""), ("input_rule", "input_rule", "#CD7F32"),
+    ("prompt", "prompt", ""), ("user_text", "user_text", ""),
+    ("input_rule", "input_rule", "#CD7F32"),
     ("title", "banner_title", "#FFD700"), ("text", "banner_text", "#FFF8DC"),
     ("dim", "banner_dim", "#555555"), ("label", "ui_label", "@title"), ("warn", "ui_warn", "#FF8C00"),
     ("error", "ui_error", "#FF6B6B"), ("status_bg", "status_bar_bg", "#1a1a2e"),
@@ -513,7 +514,7 @@ _STYLE_PALETTE = (
 
 # prompt_toolkit style class -> format template over the resolved palette names.
 _STYLE_TEMPLATES = {
-    "input-area": "",  # terminal default fg/bg — `prompt` styles the symbol, NOT typed text
+    "input-area": "{user_text}",  # terminal default fg/bg unless the skin sets `user_text`; `prompt` styles the symbol, NOT typed text
     "placeholder": "{dim} italic", "prompt": "{prompt}", "prompt-working": "{dim} italic",
     "hint": "{dim} italic",
     "status-bar": "bg:{status_bg} {status_text}", "status-bar-strong": "bg:{status_bg} {status_strong} bold",

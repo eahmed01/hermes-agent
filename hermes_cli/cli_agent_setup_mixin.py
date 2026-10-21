@@ -12,6 +12,16 @@ from agent.i18n import t
 from utils import base_url_host_matches
 
 
+def _get_preserve_thinking_replay_config() -> bool:
+    """Read ``agent.preserve_thinking_replay`` from config (default False)."""
+    try:
+        from hermes_cli.config import load_config
+        cfg = load_config()
+        return bool(cfg.get("agent", {}).get("preserve_thinking_replay", False))
+    except Exception:
+        return False
+
+
 def _single_query_clarify_callback(questions: list) -> dict:
     """Headless clarify answer for ``hermes chat -q``.
 
@@ -731,6 +741,10 @@ class CLIAgentSetupMixin:
                 checkpoint_max_total_size_mb=self.checkpoint_max_total_size_mb,
                 checkpoint_max_file_size_mb=self.checkpoint_max_file_size_mb,
                 pass_session_id=self.pass_session_id, skip_context_files=self.ignore_rules,
+                preserve_thinking_replay=getattr(
+                    self, "preserve_thinking_replay",
+                    _get_preserve_thinking_replay_config(),
+                ),
                 skip_memory=self.ignore_rules, tool_progress_callback=self._on_tool_progress,
                 tool_start_callback=self._on_tool_start if self._inline_diffs_enabled else None,
                 tool_complete_callback=self._on_tool_complete if self._inline_diffs_enabled else None,

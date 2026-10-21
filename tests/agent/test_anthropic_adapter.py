@@ -12,7 +12,13 @@ from agent.prompt_caching import apply_anthropic_cache_control
 from agent.anthropic_adapter import build_anthropic_client, build_anthropic_kwargs
 from agent.anthropic_credentials import _is_oauth_token, _refresh_oauth_token, _write_claude_code_credentials, is_claude_code_token_valid, read_claude_code_credentials, resolve_anthropic_token, run_oauth_setup_token
 from agent.credential_pool import PooledCredential
-from agent.anthropic_message_convert import _to_plain_data, convert_messages_to_anthropic, convert_tools_to_anthropic, normalize_model_name
+from agent.anthropic_message_convert import (
+    _sanitize_tool_name,
+    _to_plain_data,
+    convert_messages_to_anthropic,
+    convert_tools_to_anthropic,
+    normalize_model_name,
+)
 from agent.transports import get_transport
 
 
@@ -1859,3 +1865,41 @@ def test_unsupported_inline_image_subtype_downgrades_to_text_for_anthropic(monke
     assert blocks[0]["source"] == {"type": "base64", "media_type": "image/png", "data": "iVBORw0KGgo="}
     assert "image/svg+xml" in blocks[1]["text"]
     assert blocks[2]["source"]["media_type"] == "image/jpeg"
+
+
+class TestSanitizeToolName:
+    """Anthropic requires tool names matching [a-zA-Z0-9_-]{1,128}."""
+
+    def test_valid_name_unchanged(self):
+        assert _sanitize_tool_name("search_files") == "search_files"
+        assert _sanitize_tool_name("tool-1_2") == "tool-1_2"
+
+    def test_dots_replaced(self):
+        # MCP-style dotted names are rejected by the Anthropic API.
+        assert _sanitize_tool_name("my.server.tool") == "my_server_tool"
+
+    def test_invalid_chars_replaced(self):
+        assert _sanitize_tool_name("space name!") == "space_name_"
+        assert _sanitize_tool_name("a/b\\c") == "a_b_c"
+
+    def test_truncated_to_128(self):
+        long_name = "a" * 200
+        assert len(_sanitize_tool_name(long_name)) == 128
+
+    def test_empty_falls_back(self):
+        assert _sanitize_tool_name("") == "tool"
+        # All-invalid input still yields a valid name (underscores match the pattern).
+        assert _sanitize_tool_name("///") == "___"
+
+    def test_convert_tools_sanitizes_names(self):
+        tools = [{"function": {"name": "mcp.dot.tool", "description": "d", "parameters": {}}}]
+        out = convert_tools_to_anthropic(tools)
+        assert out[0]["name"] == "mcp_dot_tool"
+
+    def test_convert_tools_dedups_on_sanitized_name(self):
+        tools = [
+            {"function": {"name": "a.b", "description": "1", "parameters": {}}},
+            {"function": {"name": "a_b", "description": "2", "parameters": {}}},
+        ]
+        out = convert_tools_to_anthropic(tools)
+        assert [t["name"] for t in out] == ["a_b"]

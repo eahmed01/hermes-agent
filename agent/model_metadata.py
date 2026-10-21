@@ -1330,6 +1330,26 @@ def parse_available_output_tokens_from_error(error_msg: str) -> Optional[int]:
     # retry walks the cap down by the safety margin without ever fitting: halve the cap instead.
     _m_vllm_input = re.search(r'prompt contains (?:at least )?(\d+)\s*input tokens', error_lower)
     if _m_ctx_tok and _m_vllm_input:
+        # vLLM emits the "at least" qualifier exactly when its tokenizer
+        # truncated the prompt to max_input_tokens + 1 during validation
+        # (vllm/renderers/params.py: max_input_tokens = max_total_tokens -
+        # max_output_tokens treats the requested max_tokens as a HARD
+        # RESERVATION; _token_len_check adds the qualifier iff
+        # token_count == max_input_tokens + 1).  In that case the reported
+        # count is a LOWER BOUND, not the true prompt length: the true input
+        # is longer, so the true available output budget is SMALLER than
+        # window - reported_count.  Returning the clamped cap would start a
+        # blind descent — each retry lowers max_tokens by only ~64 (the
+        # safety margin) while the unchanged true input keeps exceeding the
+        # truncation floor — until the compression budget is exhausted
+        # (observed: 3 retries, "Max compression attempts reached", with the
+        # prompt ~197k tokens in a 262144 window).  The reliable remedy when
+        # the true input length is unknown is to shrink the input, so return
+        # None and let the caller compress history.
+        if re.search(
+            r'prompt contains at least (\d+)\s*input tokens', error_lower
+        ):
+            return None
         _available = int(_m_ctx_tok.group(1)) - int(_m_vllm_input.group(1))
         _m_requested_out = re.search(r'requested (\d+)\s*output tokens', error_lower)
         if 'at least' in error_lower and _m_requested_out:

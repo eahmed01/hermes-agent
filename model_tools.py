@@ -949,6 +949,19 @@ def handle_function_call(
         result = _execute_tool(function_name, function_args, original_args, ids, user_task=user_task,
                                enabled_tools=enabled_tools, skip_tool_execution_middleware=skip_tool_execution_middleware)
         duration_ms = _elapsed_ms(start)
+
+        # Headroom: compress large tool outputs before they enter context.
+        # Runs after dispatch, before post_tool_call hook and transform hook.
+        # Fail-open: any error passes the original result through.
+        try:
+            if isinstance(result, str):
+                from agent.tool_output_compressor import compress_tool_result
+                compressed = compress_tool_result(function_name, result)
+                if compressed is not None:
+                    result = compressed
+        except Exception as _cr_err:
+            logger.debug("Headroom compressor error: %s", _cr_err)
+
         _emit(result, duration_ms=duration_ms)
         return _apply_transform_tool_result_hook(function_name, function_args, result, duration_ms, ids)
 

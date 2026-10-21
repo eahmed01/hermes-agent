@@ -43795,6 +43795,18 @@
             "default": null,
             "title": "Inline Diff"
           },
+          "diff_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Diff Error"
+          },
           "todos": {
             "anyOf": [
               {

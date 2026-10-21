@@ -3452,10 +3452,19 @@ def intent_ack_continuation_mode(agent) -> str:
     return "codex_only" if agent.api_mode == "codex_responses" else "off"
 
 
+def _qwen_preserve_thinking_route():
+    """Replay route for Qwen3.6+ preserve_thinking on vLLM >=0.20: the route reads
+    ``reasoning`` (not ``reasoning_content``), so keep that carrier only — no pad tier,
+    and any ``reasoning_content`` a prior provider injected is stripped by the policy."""
+    from agent.message_sanitization import R, ReasoningReplayRoute
+    return ReasoningReplayRoute(False, frozenset({R}))
+
+
 def copy_reasoning_content_for_api(agent, source_msg: dict, api_msg: dict) -> None:
     """Forward reasoning fields onto an API replay message; policy lives in ``agent.message_sanitization.apply_reasoning_content_policy``."""
     from agent.message_sanitization import apply_reasoning_content_policy
-    apply_reasoning_content_policy(source_msg, api_msg, *agent._reasoning_replay_route())
+    route = _qwen_preserve_thinking_route() if agent._needs_qwen_thinking_replay() else agent._reasoning_replay_route()
+    apply_reasoning_content_policy(source_msg, api_msg, *route)
 
 
 def reapply_reasoning_echo_for_provider(agent, api_messages: list) -> int:
@@ -3471,7 +3480,8 @@ def reapply_reasoning_echo_for_provider(agent, api_messages: list) -> int:
     request falls back to Mistral, and Mistral 422s on the stale pad.
     """
     from agent.message_sanitization import reapply_reasoning_echo
-    return reapply_reasoning_echo(api_messages, *agent._reasoning_replay_route())
+    route = _qwen_preserve_thinking_route() if agent._needs_qwen_thinking_replay() else agent._reasoning_replay_route()
+    return reapply_reasoning_echo(api_messages, *route)
 
 
 def _iter_httpx_pools_with_owner(http_client: Any):

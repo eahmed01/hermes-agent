@@ -117,8 +117,18 @@ def _sanitize_tool_id(tool_id: str) -> str:
     return (re.sub(r"[^a-zA-Z0-9_-]", "_", tool_id) if tool_id else "") or "tool_0"
 
 
+def _sanitize_tool_name(name: str) -> str:
+    """Sanitize a tool name for the Anthropic API.
+
+    Anthropic requires tool names matching [a-zA-Z0-9_-]{1,128}.
+    Replace invalid characters with underscores and truncate.
+    """
+    sanitized = re.sub(r"[^a-zA-Z0-9_-]", "_", name or "")
+    return sanitized[:128] if sanitized else "tool"
+
+
 def _tool_use_block(tool_id: Any, name: Any, tool_input: Any) -> dict[str, Any]:
-    return {"type": "tool_use", "id": _sanitize_tool_id(tool_id), "name": name, "input": tool_input}
+    return {"type": "tool_use", "id": _sanitize_tool_id(tool_id), "name": _sanitize_tool_name(name), "input": tool_input}
 
 
 def _normalize_tool_input_schema(schema: Any) -> dict[str, Any]:
@@ -149,15 +159,18 @@ def convert_tools_to_anthropic(tools: list[dict]) -> list[dict]:
     for t in tools or []:
         fn = t.get("function", {})
         name = fn.get("name", "")
+        # Sanitize tool name for Anthropic's strict pattern
+        # (^[a-zA-Z0-9_-]{1,128}$). Dots, spaces, slashes etc. are rejected.
+        safe_name = _sanitize_tool_name(name)
         # Defensive dedup: Anthropic rejects requests with duplicate tool names. Upstream injection paths
         # already dedup, but this guard converts a hard API failure into a warning. See: #18478
-        if name and name in seen_names:
-            logger.warning("convert_tools_to_anthropic: duplicate tool name '%s' — dropping second occurrence", name)
+        if safe_name and safe_name in seen_names:
+            logger.warning("convert_tools_to_anthropic: duplicate tool name '%s' — dropping second occurrence", safe_name)
             continue
-        if name:
-            seen_names.add(name)
+        if safe_name:
+            seen_names.add(safe_name)
         anthropic_tool: dict[str, Any] = {
-            "name": name, "description": fn.get("description", ""),
+            "name": safe_name, "description": fn.get("description", ""),
             "input_schema": _normalize_tool_input_schema(fn.get("parameters") or {}),
         }
         result.append(_carry_cache_control(anthropic_tool, t, copy=True))

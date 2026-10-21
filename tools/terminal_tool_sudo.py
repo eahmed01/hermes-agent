@@ -24,7 +24,14 @@ logger = logging.getLogger("tools.terminal_tool")
 # Interactive sudo password cache, scoped to the session key when present, else callback
 # identity (ACP / CLI), else the current thread — so one session can never reuse another's
 # cached password in a long-lived process.
-_sudo_password_cache: dict[str, str] = {}
+#
+# Values are bytearray (mutable) so we can explicitly zero the bytes on expiry,
+# invalidation, and atexit — plain str is immutable and leaves bytes in memory
+# until the allocator reclaims them.
+#
+# Each value is a 2-tuple: (expiry_epoch_float, bytearray).
+_SUDO_PASSWORD_TTL = 15 * 60  # 15 minutes — matches native sudo timestamp_timeout
+_sudo_password_cache: dict[str, tuple[float, bytearray]] = {}
 _sudo_password_cache_lock = threading.Lock()
 
 # Only populated while invoking a UI callback; preserve the zero-argument callback API.
@@ -52,26 +59,47 @@ def _get_sudo_password_cache_scope() -> str:
     return f"callback:{id(callback)}"
 
 
+def _zero_sudo_password(data: bytearray) -> None:
+    """Explicitly zero all bytes in a sudo password bytearray."""
+    for i in range(len(data)):
+        data[i] = 0
+
+
 def _get_cached_sudo_password() -> str:
-    """Return the cached sudo password for the current scope."""
+    """Return the cached sudo password for the current scope, or '' if expired/missing."""
     scope = _get_sudo_password_cache_scope()
+    now = time.time()
     with _sudo_password_cache_lock:
-        return _sudo_password_cache.get(scope, "")
+        entry = _sudo_password_cache.get(scope)
+        if entry is None:
+            return ""
+        expiry, data = entry
+        if now >= expiry:
+            # Expired — zero bytes and drop entry
+            _zero_sudo_password(data)
+            del _sudo_password_cache[scope]
+            return ""
+        return data.decode("utf-8", errors="replace")
 
 
 def _set_cached_sudo_password(password: str) -> None:
-    """Persist a sudo password for the current scope ("" drops the entry)."""
+    """Persist a sudo password for the current scope with TTL."""
     scope = _get_sudo_password_cache_scope()
+    now = time.time()
     with _sudo_password_cache_lock:
         if password:
-            _sudo_password_cache[scope] = password
+            _sudo_password_cache[scope] = (now + _SUDO_PASSWORD_TTL, bytearray(password, "utf-8"))
         else:
-            _sudo_password_cache.pop(scope, None)
+            old = _sudo_password_cache.pop(scope, None)
+            if old is not None:
+                _zero_sudo_password(old[1])
 
 
 def _reset_cached_sudo_passwords() -> None:
-    """Clear all cached sudo passwords (tests / process teardown)."""
+    """Clear all cached sudo passwords, zeroing the underlying bytes."""
     with _sudo_password_cache_lock:
+        for entry in _sudo_password_cache.values():
+            _zero_sudo_password(entry[1])
         _sudo_password_cache.clear()
 
 

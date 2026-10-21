@@ -412,6 +412,7 @@ class ToolCompletePayload(Payload):
     summary: str | None = None
     result_text: str | None = None
     inline_diff: str | None = None
+    diff_error: str | None = None
     todos: list[JsonValue] | None = None
     revision: int | None = None
     labels: list[ToolLabel] | None = None

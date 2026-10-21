@@ -102,6 +102,15 @@ TOOLSETS = {
         "instructions and knowledge",
         ["skills_list", "skill_view", "skill_manage"],
     ),
+    "consultation": _ts(
+        "Frontier model consultation: ask expensive models (Opus, GPT-5.5, etc.) "
+        "for expert advisory on specific hard problems",
+        ["consultation_ask"],
+    ),
+    "headroom": _ts(
+        "Tool output compression: retrieve full originals of compressed tool outputs",
+        ["headroom_retrieve"],
+    ),
     # web_search belongs to `web`/`search` only. Listing it here too let
     # `disabled_toolsets: [browser]` (headless/Docker deployments) strip
     # web_search from every session, because disabled toolsets are a strict

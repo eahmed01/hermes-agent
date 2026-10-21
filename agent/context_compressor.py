@@ -824,7 +824,7 @@ def _next_timeout_cooldown(compressor: Any, counter: str = "_consecutive_timeout
 _MIN_SUMMARY_TOKENS = 2000
 _SUMMARY_RATIO = 0.20
 # Summaries above ~10K tokens are themselves a context-pressure source.
-_SUMMARY_TOKENS_CEILING = 10_000
+_SUMMARY_TOKENS_CEILING = 25_000
 
 # After this many failures at one cursor, skip the exchange to avoid busy-looping.
 _MICRO_COMPACT_MAX_CONSECUTIVE_FAILURES = 3
@@ -2248,7 +2248,7 @@ class ContextCompressor(
     @property
     def max_summary_tokens(self) -> int:
         if self._max_summary_tokens is None:
-            self._max_summary_tokens = min(int(self.context_length * 0.05), _SUMMARY_TOKENS_CEILING)
+            self._max_summary_tokens = min(int(self.context_length * 0.10), _SUMMARY_TOKENS_CEILING)
         return self._max_summary_tokens
 
     @max_summary_tokens.setter
@@ -2703,7 +2703,7 @@ class ContextCompressor(
         # Reset to None so the property recomputes via the mode-aware path (not the legacy formula).
         self._tail_token_budget = None
         _ = self.tail_token_budget  # eager recompute, same timing as before
-        self.max_summary_tokens = min(int(context_length * 0.05), _SUMMARY_TOKENS_CEILING)
+        self.max_summary_tokens = min(int(context_length * 0.10), _SUMMARY_TOKENS_CEILING)
         # Old usage cannot price a new model. Clear it without arming the post-compaction
         # latch: the next response supplies usage or enables the usage-less fallback.
         self.last_prompt_tokens = self.last_completion_tokens = self.last_total_tokens = 0
@@ -3942,6 +3942,14 @@ Summary generation was unavailable, so this is a best-effort deterministic fallb
 
             _raise_if_stale_attempt(self)
             self._record_summary_success(summary)
+            # Log summary outcome for debugging "lobotomize" complaints
+            if summary:
+                summary_chars = len(summary)
+                summary_tokens_est = summary_chars // _CHARS_PER_TOKEN
+                logger.info(
+                    "summary generated: ~%d tokens (%d chars) from %d turns",
+                    summary_tokens_est, summary_chars, len(turns_to_summarize),
+                )
             return self._with_summary_prefix(summary)
         except Exception as e:  # health: allow BLE001 -- unchanged summary boundary: every failure goes to _on_summary_failure
             return self._on_summary_failure(e, turns_to_summarize, focus_topic, memory_context)

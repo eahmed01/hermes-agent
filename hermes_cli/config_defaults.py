@@ -1298,6 +1298,21 @@ DEFAULT_CONFIG = {
     # plugins/context_engine/<name>/ or ~/.hermes/plugins/.
     "context": {
         "engine": "compressor",
+        "headroom": {
+            # SmartCrusher-specific knobs — passed to SmartCrusherConfig
+            "crush_smartcrusher": {
+                "max_items_after_crush": 50,
+                "min_tokens_to_crush": 1000,
+                "min_items_to_analyze": 20,
+                "first_fraction": 0.35,
+                "last_fraction": 0.25,
+                "variance_threshold": 1.5,
+                "uniqueness_threshold": 0.05,
+                "similarity_threshold": 0.90,
+                "preserve_change_points": True,
+                "dedup_identical_items": True,
+            },
+        },
         # Return freed glibc pages at agent/TUI cleanup boundaries (no-op elsewhere).
         "memory_trim": {
             "enabled": True,

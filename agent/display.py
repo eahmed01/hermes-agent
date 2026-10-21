@@ -1239,6 +1239,65 @@ def _cute_scroll(a: dict, _r) -> str:
     return _cute_row(f"{_SCROLL_ARROWS.get(direction, '↓')} ", "scroll", label)
 
 
+def _cute_patch(a: dict, r) -> str:
+    """Patch completion line: path/mode, plus +added/-removed diff stats, file counts,
+    and lint status parsed from the tool result (fail-open; cosmetic only)."""
+    path_detail = _cute_path(a.get("path", "")) if a.get("path") else ""
+    mode_detail = str(a.get("mode", ""))
+    diff_stats = ""
+    file_detail = ""
+    lint_detail = ""
+    if r:
+        try:
+            data = r if isinstance(r, dict) else safe_json_loads(r)
+            if data and data.get("success"):
+                diff_text = data.get("diff", "")
+                if diff_text:
+                    added = diff_text.count("\n+") - diff_text.count("\n+++")
+                    removed = diff_text.count("\n-") - diff_text.count("\n---")
+                    if added or removed:
+                        diff_stats = f"+{added}/-{removed}"
+
+                modified = data.get("files_modified") or []
+                created = data.get("files_created") or []
+                deleted = data.get("files_deleted") or []
+                all_files = modified + created + deleted
+                if all_files and not path_detail:
+                    if len(all_files) == 1:
+                        file_detail = _cute_path(all_files[0])
+                    else:
+                        file_detail = t("display.cute.patch_files", count=len(all_files))
+
+                lint = data.get("lint")
+                if lint and isinstance(lint, dict):
+                    lint_statuses = [v.get("status") for v in lint.values() if isinstance(v, dict)]
+                    if lint_statuses:
+                        if all(s == "ok" for s in lint_statuses):
+                            lint_detail = t("display.cute.patch_lint_ok")
+                        else:
+                            errors = [s for s in lint_statuses if s == "error"]
+                            lint_detail = (t("display.cute.patch_lint_error", count=len(errors))
+                                           if errors else t("display.cute.patch_lint_warn"))
+
+                created_set = set(created)
+                deleted_set = set(deleted)
+                file_labels = []
+                if created_set:
+                    file_labels.append(t("display.cute.patch_new", count=len(created_set)))
+                if deleted_set:
+                    file_labels.append(t("display.cute.patch_del", count=len(deleted_set)))
+                if file_labels:
+                    file_detail = ", ".join(file_labels)
+                    if modified:
+                        file_detail += f", {t('display.cute.patch_mod', count=len(modified))}"
+        except Exception:
+            pass
+
+    parts = [p for p in (file_detail or path_detail, diff_stats, lint_detail) if p]
+    detail = "  ".join(parts) if parts else (path_detail or mode_detail or "")
+    return _cute_row("🔧", "patch", detail)
+
+
 # Completion-line renderers: tool -> f(args, result) -> "┊ {emoji} {verb:9} {detail}" (duration appended by caller).
 _CUTE_LINES = {
     "web_search": lambda a, r: _cute_row("🔍", "search", _cute_trunc(a.get("query", ""))),
@@ -1247,7 +1306,7 @@ _CUTE_LINES = {
     "process_manage": _cute_process_manage,
     "read_file": lambda a, r: _cute_row("📖", "read", _cute_trunc(build_tool_preview("read_file", a) or a.get("path", ""))),
     "write_file": lambda a, r: _cute_row("✍️ ", "write", _cute_path(a.get("path", ""))),
-    "patch": lambda a, r: _cute_row("🔧", "patch", _cute_path(a.get("path", ""))),
+    "patch": _cute_patch,
     "search_files": lambda a, r: _cute_row("🔎", "find" if a.get("target", "content") == "files" else "grep", _cute_trunc(a.get("pattern", ""))),
     "browser_navigate": lambda a, r: _cute_row("🌐", "navigate", _cute_trunc(_domain(a.get("url", "")))),
     "browser_snapshot": lambda a, r: _cute_row("📸", "snapshot", t("display.cute.snapshot_full" if a.get("full") else "display.cute.snapshot_compact")),
