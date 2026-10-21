@@ -21,7 +21,7 @@ per-feature list and the "deliberately dropped" table (5 features superseded by 
   - tests/tui_gateway/test_tui_gateway_server.py: 638 passed, 0 failed.
 - ui-tui: `npm ci` (164 pkgs) → `npm run build:ink` → `tsc --noEmit` (typecheck) clean →
   i18n key manifest regenerated (`locales/_keys.tui.json`) → vitest + lint (final counts in
-  /tmp/vitest2.log, /tmp/lint.log).
+  the vitest/lint logs from that run).
 
 ## Next steps (in order)
 

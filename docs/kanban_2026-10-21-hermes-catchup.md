@@ -16,10 +16,17 @@ upstream@2026-07-08, previously the live editable install at `~/code/hermes-agen
       (25K ceiling / 10% ratio + log), vLLM "at least N" output-cap routing
 - [x] b5 terminal sudo hardening (bytearray+TTL, moved to tools/terminal_tool_sudo.py),
       session-export system prompt section (+redaction), skin `user_text` input color
-- [x] c1 Verify: venv build, import smoke, targeted pytest, ui-tui vitest
-- [ ] c2 Smoke: TUI boots, Ctrl+R/Ctrl+T, timestamps (upstream), consultation tool, patch diff stats
-- [ ] d1 Promote: `~/dev/hermes/0` → `0.back`; fresh `0` from this branch
-- [ ] d2 Reinstall live hermes from new `0`; verify version + tools; report
+- [x] c1 Verify: venv build, import smoke, targeted pytest (batch 491+1 fixed, sanitize 7/7,
+      tui_gateway server 638/638), ui-tui (typecheck clean, vitest 1860/1860 across 236 files,
+      lint 0 errors, i18n keys regenerated)
+- [x] c2 Smoke: TUI boots from branch venv; hotkey overlay shows "Ctrl+R toggle reasoning
+      visibility" + "Ctrl+T toggle tool call visibility"; consultation+headroom registered in
+      toolsets; version v0.22.4+14 local be458508
+- [x] d1 Promote: `~/dev/hermes/0` (old Jul-23 clone) → `0.back`; `0` is now the worktree of
+      `catchup/20261021` @ be45850806 (`.venv` + `node_modules` carried over via
+      `git worktree move`)
+- [x] d2 Reinstall live hermes from the new `0`; verify version + tools; report
+      (done via `1/` — the catchup-wt worktree — see 2026-10-27 note below)
 
 ## Deliberately DROPPED (superseded by upstream since 2026-07-08)
 
@@ -41,3 +48,25 @@ upstream@2026-07-08, previously the live editable install at `~/code/hermes-agen
   in `tui_gateway/contracts/events.py` + regenerated `apps/shared` contract. Field renamed from local
   `_diff_error` to clean `diff_error`.
 - `_cute_patch` renderer uses i18n keys added to `locales/en.yaml` (display.cute.patch_*).
+
+## 2026-10-27 — rebased onto upstream tip e5ea5fd9cc
+
+- `git rebase --onto nous/main 8685712f8f`: 2 commits replayed onto the 2026-10-27 upstream tip.
+  One conflict: the compressor summary-success path — upstream extracted
+  `_record_summary_success()` (a superset of the inline field writes); resolution kept the
+  helper plus our "summary generated" log line. 25K/10% budget intact and still the only
+  summary-budget clamp (`_compute_summary_budget`).
+- scripts/check fixes folded in: consultation_tool.py budget read utf-8 → utf-8-sig
+  (footguns); handoff doc /tmp literals reworded (no-tmp).
+- Verified after rebase: 1638 passed / 0 failed (entire compression cluster, tui_gateway
+  server 638, all 6 local feature test files). Net diff vs upstream tip unchanged:
+  42 files, +3349/−28.
+- d2 (live install) was in fact done via `1/` (the catchup-wt worktree): live install dir is
+  `~/dev/hermes/1` reporting the local tip. Note: `0/.git` and `1/.git` both point at the
+  same worktree admin dir (worktrees/catchup-wt) — they share branch ref + index.
+- Known follow-up: 19 unwaived health findings on our own lines (BLE001 catch-alls in
+  tool_output_compressor / consultation_tool / headroom_retrieve / display / model_tools /
+  cli_agent_setup_mixin, S110 at display.py:1293, CC 22 on consultation_ask) — predate the
+  rebase; the 10-21 work never ran scripts/check. Separately, scripts/check blob-size +
+  health fail on ANY head in this repo because the baseline is the merge-base with the fork's
+  stale main (ca988df8d0, 2026-07-23): it flags upstream's own recent files, not ours.
